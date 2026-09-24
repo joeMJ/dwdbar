@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.dwdbar" path="/org/gnome/shell/extensions/dwdbar/">
+    
+    <!-- Home Assistant Settings -->
+    <key name="ha-base-url" type="s">
+      <default>'https://ha.local'</default>
+      <summary>Home Assistant Base URL</summary>
+      <description>Basis-URL der Home Assistant Instanz inkl. Protokoll (z.B. https://ha.meinedomain.de hinter NGINX).</description>
+    </key>
+
+    <key name="ha-token" type="s">
+      <default>''</default>
+      <summary>Home Assistant Long-Lived Access Token</summary>
+      <description>Langlebiger Zugriffs-Token für die Home Assistant REST-API.</description>
+    </key>
+
+    <key name="ha-temp-entity" type="s">
+      <default>'sensor.outdoor_temperature'</default>
+      <summary>Temperatur-Sensor Entitäts-ID</summary>
+      <description>Entitäts-ID des Home Assistant Temperatursensors (z.B. sensor.aussentemperatur).</description>
+    </key>
+
+    <key name="ha-humidity-entity" type="s">
+      <default>'sensor.outdoor_humidity'</default>
+      <summary>Luftfeuchte-Sensor Entitäts-ID</summary>
+      <description>Entitäts-ID des Home Assistant Luftfeuchtesensors (z.B. sensor.aussenfeuchtigkeit).</description>
+    </key>
+
+    <key name="ha-enabled" type="b">
+      <default>false</default>
+      <summary>Home Assistant Abfrage aktiv</summary>
+      <description>Ob Messwerte von Home Assistant abgerufen werden sollen.</description>
+    </key>
+
+    <!-- DWD / Bright Sky Settings -->
+    <key name="dwd-latitude" type="d">
+      <default>51.2895</default>
+      <summary>DWD Breitengrad (Latitude)</summary>
+      <description>Breitengrad für die DWD-Wetterabfrage (Standard: Düsseldorf/Krefeld).</description>
+    </key>
+
+    <key name="dwd-longitude" type="d">
+      <default>6.7668</default>
+      <summary>DWD Längengrad (Longitude)</summary>
+      <description>Längengrad für die DWD-Wetterabfrage.</description>
+    </key>
+
+    <key name="dwd-station-id" type="s">
+      <default>'10400'</default>
+      <summary>DWD Stations-ID</summary>
+      <description>DWD Stationskennung (z.B. 10400 für Düsseldorf).</description>
+    </key>
+
+    <key name="dwd-station-name" type="s">
+      <default>'Düsseldorf (DUS)'</default>
+      <summary>Anzeigename der Station</summary>
+      <description>Im Popup angezeigter Name der Wetterstation.</description>
+    </key>
+
+    <!-- Layout & Panel -->
+    <key name="panel-position" type="s">
+      <choices>
+        <choice value="center"/>
+        <choice value="right"/>
+      </choices>
+      <default>'center'</default>
+      <summary>Position im Panel</summary>
+      <description>Platzierung des Icons: 'center' (neben Uhrzeit) oder 'right' (neben Netzwerk/Quick Settings).</description>
+    </key>
+
+    <key name="show-humidity-in-panel" type="b">
+      <default>true</default>
+      <summary>Luftfeuchtigkeit in der Leiste anzeigen</summary>
+      <description>Zeigt die relative Luftfeuchte direkt im Top-Panel an.</description>
+    </key>
+
+    <key name="show-dewpoint-in-panel" type="b">
+      <default>true</default>
+      <summary>Taupunkt in der Leiste anzeigen</summary>
+      <description>Zeigt den berechneten Taupunkt direkt im Top-Panel an.</description>
+    </key>
+
+    <key name="refresh-interval" type="i">
+      <range min="1" max="60"/>
+      <default>10</default>
+      <summary>Aktualisierungsintervall (Minuten)</summary>
+      <description>Intervall zur Aktualisierung der Wetter- und Sensordaten in Minuten.</description>
+    </key>
+
+    <!-- Update Settings -->
+    <key name="update-check-enabled" type="b">
+      <default>true</default>
+      <summary>Aktualitätsprüfung aktiv</summary>
+      <description>Prüft regelmäßig auf neuere Versionen im Git-Repository.</description>
+    </key>
+
+    <key name="git-update-url" type="s">
+      <default>'gitea@192.168.10.179:joe/krefeld-dwdbar.git'</default>
+      <summary>Git Clone / Update URL</summary>
+      <description>Git-Remote-URL für Skript-Updates.</description>
+    </key>
+
+    <key name="git-raw-metadata-url" type="s">
+      <default>'http://192.168.10.179/joe/krefeld-dwdbar/raw/branch/main/metadata.json'</default>
+      <summary>Git Raw Metadata URL</summary>
+      <description>HTTP(S)-URL zur Prüfung der neuesten metadata.json (Gitea / GitHub).</description>
+    </key>
+
+  </schema>
+</schemalist>
