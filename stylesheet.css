@@ -80,6 +80,12 @@
     font-weight: bold;
 }
 
+.dwdbar-header-subvalues {
+    font-size: 9.5pt;
+    font-weight: 500;
+    margin-top: 1px;
+}
+
 .dwdbar-source-badge {
     font-size: 8.5pt;
     font-weight: bold;
@@ -87,18 +93,15 @@
     margin-top: 1px;
 }
 
-.dwdbar-minmax-temp {
-    font-size: 9.5pt;
-    opacity: 0.8;
-}
-
-/* Alternativquelle Box */
+/* Max / Min und Alternativquelle */
+.dwdbar-minmax-card,
 .dwdbar-alt-source-card {
-    padding: 4px 0 6px 0;
+    padding: 3px 0 3px 0;
     spacing: 10px;
     margin: 0;
 }
 
+.dwdbar-minmax-icon,
 .dwdbar-alt-source-icon {
     icon-size: 18px;
     color: #78aeed;

@@ -125,6 +125,14 @@ class DwdIndicator extends PanelMenu.Button {
         });
         headerTempBox.add_child(this._headerTempLabel);
 
+        // Luftfeuchte und Taupunkt der Hauptquelle (z.B. "57 %   Td 9,0 °C")
+        this._headerSubValuesLabel = new St.Label({
+            text: '',
+            style_class: 'dwdbar-header-subvalues',
+            x_align: Clutter.ActorAlign.END,
+        });
+        headerTempBox.add_child(this._headerSubValuesLabel);
+
         // Quellenhinweis unter der Temperatur (z.B. "Quelle: HA" oder "Quelle: DWD")
         this._headerSourceBadge = new St.Label({
             text: '',
@@ -132,16 +140,47 @@ class DwdIndicator extends PanelMenu.Button {
             x_align: Clutter.ActorAlign.END,
         });
         headerTempBox.add_child(this._headerSourceBadge);
-
-        this._headerMinMaxLabel = new St.Label({
-            text: '--,- °C / --,- °C',
-            style_class: 'dwdbar-minmax-temp',
-            x_align: Clutter.ActorAlign.END,
-        });
-        headerTempBox.add_child(this._headerMinMaxLabel);
         this._headerCard.add_child(headerTempBox);
 
         this._contentBox.add_child(this._headerCard);
+
+        // A2. Tages-Höchst- und Tiefstwert (DWD)
+        this._minMaxCard = new St.BoxLayout({
+            style_class: 'dwdbar-minmax-card',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: true,
+        });
+
+        this._minMaxIcon = new St.Icon({
+            icon_name: 'weather-clear-symbolic',
+            icon_size: 16,
+            style_class: 'dwdbar-minmax-icon',
+        });
+        this._minMaxCard.add_child(this._minMaxIcon);
+
+        const minMaxInfoBox = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            style_class: 'dwdbar-alt-info-box',
+        });
+
+        this._minMaxTitle = new St.Label({
+            text: 'Max / Min (Quelle: DWD):',
+            style_class: 'dwdbar-alt-source-title',
+        });
+        this._minMaxTitle.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        minMaxInfoBox.add_child(this._minMaxTitle);
+
+        this._minMaxValues = new St.Label({
+            text: '--,- °C / --,- °C',
+            style_class: 'dwdbar-alt-source-values',
+        });
+        this._minMaxValues.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        minMaxInfoBox.add_child(this._minMaxValues);
+
+        this._minMaxCard.add_child(minMaxInfoBox);
+        this._contentBox.add_child(this._minMaxCard);
 
         // A2. Alternativquelle-Anzeige (DWD vs. HA)
         this._altSourceCard = new St.BoxLayout({
@@ -338,12 +377,14 @@ class DwdIndicator extends PanelMenu.Button {
         const stationDisplayName = stationNamePref || dwdData?.stationName || 'DWD Station';
         this._headerStationLabel.text = stationDisplayName;
 
-        let mainTemp, mainSourceText;
+        let mainTemp, mainHum, mainDp, mainSourceText;
         let altTemp, altHum, altDp, altSourceText, altIcon;
 
         if (popupSource === 'dwd' || haTemp === null) {
             // Hauptfeld zeigt DWD
             mainTemp = dwdTemp;
+            mainHum = dwdHum;
+            mainDp = dwdDp;
             mainSourceText = 'Quelle: DWD';
 
             altTemp = haTemp;
@@ -354,6 +395,8 @@ class DwdIndicator extends PanelMenu.Button {
         } else {
             // Hauptfeld zeigt Home Assistant
             mainTemp = haTemp;
+            mainHum = haHum;
+            mainDp = haDp;
             mainSourceText = 'Quelle: HA';
 
             altTemp = dwdTemp;
@@ -363,13 +406,29 @@ class DwdIndicator extends PanelMenu.Button {
             altIcon = 'weather-few-clouds-symbolic';
         }
 
+        // 1. Hauptfeld: Temperatur, Feuchte/Taupunkt und Quelle
         this._headerTempLabel.text = mainTemp !== null ? formatValue(mainTemp, '°C', 1) : '--,- °C';
+
+        if (mainHum !== null && mainDp !== null) {
+            this._headerSubValuesLabel.text = `${formatValue(mainHum, '%', 0)}   Td ${formatValue(mainDp, '°C', 1)}`;
+            this._headerSubValuesLabel.visible = true;
+        } else if (mainHum !== null) {
+            this._headerSubValuesLabel.text = `${formatValue(mainHum, '%', 0)}`;
+            this._headerSubValuesLabel.visible = true;
+        } else {
+            this._headerSubValuesLabel.text = '';
+            this._headerSubValuesLabel.visible = false;
+        }
+
         this._headerSourceBadge.text = mainSourceText;
         
+        // 2. Max / Min (Quelle: DWD - bleibt immer DWD)
         if (dwdData && dwdData.todayMax !== null && dwdData.todayMin !== null) {
-            this._headerMinMaxLabel.text = `${formatValue(dwdData.todayMax, '°C', 1)} / ${formatValue(dwdData.todayMin, '°C', 1)}`;
+            this._minMaxValues.text = `${formatValue(dwdData.todayMax, '°C', 1)} / ${formatValue(dwdData.todayMin, '°C', 1)}`;
+            this._minMaxCard.visible = true;
         } else {
-            this._headerMinMaxLabel.text = '--,- °C / --,- °C';
+            this._minMaxValues.text = '--,- °C / --,- °C';
+            this._minMaxCard.visible = false;
         }
 
         // 3. Alternativquelle anzeigen (falls aktiviert und Werte vorhanden)
