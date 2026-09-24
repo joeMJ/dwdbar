@@ -6,10 +6,11 @@ import GObject from 'gi://GObject';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
+import Pango from 'gi://Pango';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
-import { formatValue } from './dewpoint.js';
+import { formatValue, calculateDewPoint } from './dewpoint.js';
 
 export const DwdIndicator = GObject.registerClass(
 class DwdIndicator extends PanelMenu.Button {
@@ -124,6 +125,14 @@ class DwdIndicator extends PanelMenu.Button {
         });
         headerTempBox.add_child(this._headerTempLabel);
 
+        // Quellenhinweis unter der Temperatur (z.B. "Quelle: HA" oder "Quelle: DWD")
+        this._headerSourceBadge = new St.Label({
+            text: '',
+            style_class: 'dwdbar-source-badge',
+            x_align: Clutter.ActorAlign.END,
+        });
+        headerTempBox.add_child(this._headerSourceBadge);
+
         this._headerMinMaxLabel = new St.Label({
             text: '--,- °C / --,- °C',
             style_class: 'dwdbar-minmax-temp',
@@ -134,17 +143,60 @@ class DwdIndicator extends PanelMenu.Button {
 
         this._contentBox.add_child(this._headerCard);
 
+        // A2. Alternativquelle-Anzeige (DWD vs. HA)
+        this._altSourceCard = new St.BoxLayout({
+            style_class: 'dwdbar-alt-source-card',
+            x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: false,
+        });
+
+        this._altSourceIcon = new St.Icon({
+            icon_name: 'network-server-symbolic',
+            icon_size: 16,
+            style_class: 'dwdbar-alt-source-icon',
+        });
+        this._altSourceCard.add_child(this._altSourceIcon);
+
+        const altInfoBox = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            style_class: 'dwdbar-alt-info-box',
+        });
+
+        this._altSourceTitle = new St.Label({
+            text: 'Alternativquelle:',
+            style_class: 'dwdbar-alt-source-title',
+        });
+        this._altSourceTitle.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        altInfoBox.add_child(this._altSourceTitle);
+
+        this._altSourceValues = new St.Label({
+            text: '--,- °C   -- %   Td --,- °C',
+            style_class: 'dwdbar-alt-source-values',
+        });
+        this._altSourceValues.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        altInfoBox.add_child(this._altSourceValues);
+
+        this._altSourceCard.add_child(altInfoBox);
+        this._contentBox.add_child(this._altSourceCard);
+
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
 
-        // B. 10-Stunden-Vorhersage (2h-Schritte)
+        // B. 10-Stunden-Vorhersage (2h-Schritte, 5 Spalten)
         const hourlyTitleBox = new St.BoxLayout({
             style_class: 'dwdbar-section-title-box',
+            x_expand: true,
         });
-        hourlyTitleBox.add_child(new St.Label({
+        const hourlyLabel = new St.Label({
             text: '10-Stunden-Vorhersage (2h-Schritte)',
             style_class: 'dwdbar-section-title',
-        }));
+            x_expand: true,
+        });
+        hourlyLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        hourlyLabel.clutter_text.line_wrap = false;
+        hourlyTitleBox.add_child(hourlyLabel);
         this._contentBox.add_child(hourlyTitleBox);
 
         this._hourlyForecastBox = new St.BoxLayout({
@@ -156,14 +208,19 @@ class DwdIndicator extends PanelMenu.Button {
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
 
-        // C. 5-Tage-Vorhersage
+        // C. 5-Tage-Vorhersage (5 Spalten)
         const dailyTitleBox = new St.BoxLayout({
             style_class: 'dwdbar-section-title-box',
+            x_expand: true,
         });
-        dailyTitleBox.add_child(new St.Label({
+        const dailyLabel = new St.Label({
             text: '5-Tage-Vorhersage',
             style_class: 'dwdbar-section-title',
-        }));
+            x_expand: true,
+        });
+        dailyLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        dailyLabel.clutter_text.line_wrap = false;
+        dailyTitleBox.add_child(dailyLabel);
         this._contentBox.add_child(dailyTitleBox);
 
         this._dailyForecastBox = new St.BoxLayout({
@@ -226,13 +283,34 @@ class DwdIndicator extends PanelMenu.Button {
      * Aktualisiert die UI mit den neuesten Sensor- und DWD-Wetterdaten.
      */
     updateUI({ dwdData, haData, dewPoint, updateStatus }) {
-        // 1. Panel-Text zusammenbauen
-        // Priorität bei Temperatur & Feuchte: Home Assistant (falls konfiguriert/vorhanden), sonst DWD
-        const displayTemp = haData?.temp ?? dwdData?.temperature ?? null;
-        const displayHum = haData?.humidity ?? dwdData?.humidity ?? null;
-        const displayDp = dewPoint ?? dwdData?.dewPoint ?? null;
+        // Konfigurierte Datenquellen abrufen
+        const panelSource = this._settings.get_string('panel-data-source') || 'ha';
+        const popupSource = this._settings.get_string('popup-data-source') || 'ha';
+        const showAltSource = this._settings.get_boolean('show-alternative-source');
 
-        // Icon aktualisieren
+        // Home Assistant Werte
+        const haTemp = haData?.temp ?? null;
+        const haHum = haData?.humidity ?? null;
+        const haDp = haTemp !== null && haHum !== null ? calculateDewPoint(haTemp, haHum) : dewPoint;
+
+        // DWD Werte
+        const dwdTemp = dwdData?.temperature ?? null;
+        const dwdHum = dwdData?.humidity ?? null;
+        const dwdDp = dwdData?.dewPoint ?? (dwdTemp !== null && dwdHum !== null ? calculateDewPoint(dwdTemp, dwdHum) : null);
+
+        // 1. Panel-Bar Werte ermitteln
+        let panelTemp, panelHum, panelDp;
+        if (panelSource === 'dwd' || haTemp === null) {
+            panelTemp = dwdTemp;
+            panelHum = dwdHum;
+            panelDp = dwdDp;
+        } else {
+            panelTemp = haTemp;
+            panelHum = haHum;
+            panelDp = haDp;
+        }
+
+        // Wolken-/Wettericon immer vom DWD
         const iconName = dwdData?.icon || 'weather-few-clouds-symbolic';
         this._panelIcon.icon_name = iconName;
 
@@ -240,26 +318,53 @@ class DwdIndicator extends PanelMenu.Button {
         const showDp = this._settings.get_boolean('show-dewpoint-in-panel');
 
         const parts = [];
-        if (displayTemp !== null) {
-            parts.push(formatValue(displayTemp, '°C', 1));
+        if (panelTemp !== null) {
+            parts.push(formatValue(panelTemp, '°C', 1));
         }
-        if (showHum && displayHum !== null) {
-            parts.push(formatValue(displayHum, '%', 0));
+        if (showHum && panelHum !== null) {
+            parts.push(formatValue(panelHum, '%', 0));
         }
-        if (showDp && displayDp !== null) {
-            parts.push(`Td ${formatValue(displayDp, '°C', 1)}`);
+        if (showDp && panelDp !== null) {
+            parts.push(`Td ${formatValue(panelDp, '°C', 1)}`);
         }
 
         this._panelLabel.text = parts.length > 0 ? parts.join('   ') : 'dwdbar';
 
-        // 2. Popup Header
+        // 2. Popup Header (Hauptfeld)
         this._headerIcon.icon_name = iconName;
         this._headerConditionLabel.text = dwdData?.conditionText || 'Aktuelles Wetter';
         
         const stationNamePref = this._settings.get_string('dwd-station-name');
-        this._headerStationLabel.text = stationNamePref || dwdData?.stationName || 'DWD Station';
+        const stationDisplayName = stationNamePref || dwdData?.stationName || 'DWD Station';
+        this._headerStationLabel.text = stationDisplayName;
 
-        this._headerTempLabel.text = displayTemp !== null ? formatValue(displayTemp, '°C', 1) : '--,- °C';
+        let mainTemp, mainSourceText;
+        let altTemp, altHum, altDp, altSourceText, altIcon;
+
+        if (popupSource === 'dwd' || haTemp === null) {
+            // Hauptfeld zeigt DWD
+            mainTemp = dwdTemp;
+            mainSourceText = 'Quelle: DWD';
+
+            altTemp = haTemp;
+            altHum = haHum;
+            altDp = haDp;
+            altSourceText = 'Home Assistant';
+            altIcon = 'network-server-symbolic';
+        } else {
+            // Hauptfeld zeigt Home Assistant
+            mainTemp = haTemp;
+            mainSourceText = 'Quelle: HA';
+
+            altTemp = dwdTemp;
+            altHum = dwdHum;
+            altDp = dwdDp;
+            altSourceText = `DWD (${stationDisplayName})`;
+            altIcon = 'weather-few-clouds-symbolic';
+        }
+
+        this._headerTempLabel.text = mainTemp !== null ? formatValue(mainTemp, '°C', 1) : '--,- °C';
+        this._headerSourceBadge.text = mainSourceText;
         
         if (dwdData && dwdData.todayMax !== null && dwdData.todayMin !== null) {
             this._headerMinMaxLabel.text = `${formatValue(dwdData.todayMax, '°C', 1)} / ${formatValue(dwdData.todayMin, '°C', 1)}`;
@@ -267,7 +372,17 @@ class DwdIndicator extends PanelMenu.Button {
             this._headerMinMaxLabel.text = '--,- °C / --,- °C';
         }
 
-        // 3. 8-Stunden-Vorhersage Spalten rendern
+        // 3. Alternativquelle anzeigen (falls aktiviert und Werte vorhanden)
+        if (showAltSource && altTemp !== null) {
+            this._altSourceCard.visible = true;
+            this._altSourceIcon.icon_name = altIcon;
+            this._altSourceTitle.text = `Alternativquelle: ${altSourceText}`;
+            this._altSourceValues.text = `${formatValue(altTemp, '°C', 1)}   ${formatValue(altHum, '%', 0)}   Td ${formatValue(altDp, '°C', 1)}`;
+        } else {
+            this._altSourceCard.visible = false;
+        }
+
+        // 4. 10-Stunden-Vorhersage Spalten rendern (5 Spalten)
         this._hourlyForecastBox.destroy_all_children();
         if (dwdData?.hourlyForecast && dwdData.hourlyForecast.length > 0) {
             for (const h of dwdData.hourlyForecast) {
@@ -313,7 +428,7 @@ class DwdIndicator extends PanelMenu.Button {
             }
         }
 
-        // 4. 5-Tage-Vorhersage Spalten rendern
+        // 5. 5-Tage-Vorhersage Spalten rendern (5 Spalten)
         this._dailyForecastBox.destroy_all_children();
         if (dwdData?.dailyForecast && dwdData.dailyForecast.length > 0) {
             for (const d of dwdData.dailyForecast) {
@@ -365,7 +480,7 @@ class DwdIndicator extends PanelMenu.Button {
             }
         }
 
-        // 5. Footer Stand
+        // 6. Footer Stand
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         let statusMsg = `Stand: ${timeStr} Uhr`;
@@ -374,7 +489,7 @@ class DwdIndicator extends PanelMenu.Button {
         }
         this._footerStatusLabel.text = statusMsg;
 
-        // 6. Update-Banner prüfen
+        // 7. Update-Banner prüfen
         if (updateStatus?.updateAvailable) {
             this._updateBanner.visible = true;
             this._updateLabel.text = `Update v${updateStatus.remoteVersion} verfügbar! (install.sh --update)`;

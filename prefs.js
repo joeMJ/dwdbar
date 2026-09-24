@@ -75,7 +75,91 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         settings.bind('refresh-interval', intervalRow, 'value', Gio.SettingsBindFlags.DEFAULT);
         groupPanel.add(intervalRow);
 
-        // Gruppe 2: Stationsfinder (Automatische Suche)
+        // Gruppe 2: Datenquellen (DWD vs. Home Assistant)
+        const groupSources = new Adw.PreferencesGroup({
+            title: 'Datenquellen (DWD & Home Assistant)',
+            description: 'Zuordnung der Messwerte für Menüleiste und Vorhersagefenster',
+        });
+        pageDisplay.add(groupSources);
+
+        // 1. Menu Bar Datenquelle
+        const panelSourceRow = new Adw.ComboRow({
+            title: 'Menu Bar zeigt Daten aus',
+            subtitle: 'Wähle die primäre Datenquelle für die obere Leiste',
+            model: new Gtk.StringList({
+                strings: ['Home Assistant', 'DWD Wetterdienst'],
+            }),
+        });
+        const currentPanelSource = settings.get_string('panel-data-source');
+        panelSourceRow.selected = currentPanelSource === 'dwd' ? 1 : 0;
+        panelSourceRow.connect('notify::selected', () => {
+            settings.set_string('panel-data-source', panelSourceRow.selected === 1 ? 'dwd' : 'ha');
+        });
+        groupSources.add(panelSourceRow);
+
+        // 2. Hauptfeld Datenquelle (Popup)
+        const popupSourceRow = new Adw.ComboRow({
+            title: 'Hauptfeld zeigt Daten aus',
+            subtitle: 'Wolkensymbole stammen stets vom DWD (Quelle DWD oder HA)',
+            model: new Gtk.StringList({
+                strings: ['Home Assistant', 'DWD Wetterdienst'],
+            }),
+        });
+        const currentPopupSource = settings.get_string('popup-data-source');
+        popupSourceRow.selected = currentPopupSource === 'dwd' ? 1 : 0;
+        popupSourceRow.connect('notify::selected', () => {
+            settings.set_string('popup-data-source', popupSourceRow.selected === 1 ? 'dwd' : 'ha');
+        });
+        groupSources.add(popupSourceRow);
+
+        // 3. Alternativquelle anzeigen
+        const altSourceRow = new Adw.SwitchRow({
+            title: 'Alternativquelle anzeigen (DWD oder HA)',
+            subtitle: 'Zeigt Temperatur, Feuchte und Taupunkt der jeweils anderen Quelle',
+        });
+        settings.bind('show-alternative-source', altSourceRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        groupSources.add(altSourceRow);
+
+        // Dynamische Aktualisierung bei externer Änderung & Sensitivität je nach Home Assistant Status
+        settings.connect('changed::panel-data-source', () => {
+            const val = settings.get_string('panel-data-source');
+            const targetIdx = val === 'dwd' ? 1 : 0;
+            if (panelSourceRow.selected !== targetIdx) {
+                panelSourceRow.selected = targetIdx;
+            }
+        });
+
+        settings.connect('changed::popup-data-source', () => {
+            const val = settings.get_string('popup-data-source');
+            const targetIdx = val === 'dwd' ? 1 : 0;
+            if (popupSourceRow.selected !== targetIdx) {
+                popupSourceRow.selected = targetIdx;
+            }
+        });
+
+        const updateSourceSensitivity = () => {
+            const haEnabled = settings.get_boolean('ha-enabled');
+            if (!haEnabled) {
+                panelSourceRow.sensitive = false;
+                panelSourceRow.subtitle = 'Home Assistant ist nicht aktiviert (nur DWD verfügbar)';
+                popupSourceRow.sensitive = false;
+                popupSourceRow.subtitle = 'Home Assistant ist nicht aktiviert (nur DWD verfügbar)';
+                altSourceRow.sensitive = false;
+                altSourceRow.subtitle = 'Home Assistant ist nicht aktiviert (keine Alternativquelle vorhanden)';
+            } else {
+                panelSourceRow.sensitive = true;
+                panelSourceRow.subtitle = 'Wähle die primäre Datenquelle für die obere Leiste';
+                popupSourceRow.sensitive = true;
+                popupSourceRow.subtitle = 'Wolkensymbole stammen stets vom DWD (Quelle DWD oder HA)';
+                altSourceRow.sensitive = true;
+                altSourceRow.subtitle = 'Zeigt Temperatur, Feuchte und Taupunkt der jeweils anderen Quelle';
+            }
+        };
+
+        updateSourceSensitivity();
+        settings.connect('changed::ha-enabled', updateSourceSensitivity);
+
+        // Gruppe 3: Stationsfinder (Automatische Suche)
         const groupFinder = new Adw.PreferencesGroup({
             title: 'DWD Stationsfinder',
             description: 'Finde automatisch die passenden DWD-Stationen mit Messwerten und Vorhersage',

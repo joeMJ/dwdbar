@@ -69,6 +69,32 @@
       <description>Platzierung des Icons: 'center' (neben Uhrzeit) oder 'right' (neben Netzwerk/Quick Settings).</description>
     </key>
 
+    <key name="panel-data-source" type="s">
+      <choices>
+        <choice value="ha"/>
+        <choice value="dwd"/>
+      </choices>
+      <default>'ha'</default>
+      <summary>Datenquelle für Panel-Leiste</summary>
+      <description>Wählt die primäre Datenquelle für die Top-Bar: 'ha' (Home Assistant) oder 'dwd' (DWD Wetterdienst).</description>
+    </key>
+
+    <key name="popup-data-source" type="s">
+      <choices>
+        <choice value="ha"/>
+        <choice value="dwd"/>
+      </choices>
+      <default>'ha'</default>
+      <summary>Datenquelle für Popup-Hauptfeld</summary>
+      <description>Wählt die Datenquelle für das Haupt-Temperaturfeld im Popup: 'ha' (Home Assistant) oder 'dwd' (DWD).</description>
+    </key>
+
+    <key name="show-alternative-source" type="b">
+      <default>true</default>
+      <summary>Alternativquelle im Popup anzeigen</summary>
+      <description>Zeigt im Popup zusätzlich die jeweils andere Datenquelle (DWD oder HA) mit Temperatur, Feuchte und Taupunkt an.</description>
+    </key>
+
     <key name="show-humidity-in-panel" type="b">
       <default>true</default>
       <summary>Luftfeuchtigkeit in der Leiste anzeigen</summary>
