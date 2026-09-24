@@ -94,12 +94,9 @@
 
 /* Alternativquelle Box */
 .dwdbar-alt-source-card {
-    background-color: rgba(128, 128, 128, 0.08);
-    border: 1px solid rgba(128, 128, 128, 0.16);
-    border-radius: 8px;
-    padding: 6px 10px;
+    padding: 4px 0 6px 0;
     spacing: 10px;
-    margin: 2px 0 4px 0;
+    margin: 0;
 }
 
 .dwdbar-alt-source-icon {
@@ -143,9 +140,7 @@
 }
 
 .dwdbar-col {
-    background-color: rgba(128, 128, 128, 0.06);
-    border-radius: 8px;
-    padding: 6px 4px;
+    padding: 6px 2px;
     spacing: 4px;
 }
 
