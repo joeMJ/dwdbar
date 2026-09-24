@@ -6,6 +6,12 @@ import Soup from 'gi://Soup?version=3.0';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
+try {
+    Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_finish');
+} catch (e) {
+    // Bereits promisified
+}
+
 export class HaClient {
     constructor() {
         this._session = new Soup.Session({

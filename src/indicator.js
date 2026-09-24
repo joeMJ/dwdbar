@@ -137,12 +137,12 @@ class DwdIndicator extends PanelMenu.Button {
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
 
-        // B. 8-Stunden-Vorhersage (2h-Schritte)
+        // B. 10-Stunden-Vorhersage (2h-Schritte)
         const hourlyTitleBox = new St.BoxLayout({
             style_class: 'dwdbar-section-title-box',
         });
         hourlyTitleBox.add_child(new St.Label({
-            text: '8-Stunden-Vorhersage (2h-Schritte)',
+            text: '10-Stunden-Vorhersage (2h-Schritte)',
             style_class: 'dwdbar-section-title',
         }));
         this._contentBox.add_child(hourlyTitleBox);

@@ -5,7 +5,13 @@
 import Soup from 'gi://Soup?version=3.0';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import { calculateDewPoint } from './dewpoint.js';
+import { calculateDewPoint, calculateRelativeHumidity } from './dewpoint.js';
+
+try {
+    Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_finish');
+} catch (e) {
+    // Bereits promisified
+}
 
 export function mapBrightSkyIcon(iconName) {
     switch (iconName) {
@@ -83,11 +89,13 @@ export class DwdClient {
      */
     async _sendWeatherRequest(url, cancellable = null) {
         try {
-            const uri = GLib.Uri.parse(url, GLib.UriFlags.NONE);
+            const uri = GLib.Uri.parse(url, GLib.UriFlags.ENCODED);
             const message = new Soup.Message({
                 method: 'GET',
                 uri: uri,
             });
+            message.request_headers.append('User-Agent', 'dwdbar-gnome-extension/1.0');
+            message.request_headers.append('Accept', 'application/json');
 
             const bytes = await this._session.send_and_read_async(
                 message,
@@ -180,12 +188,13 @@ export class DwdClient {
         if (query && query.trim() !== '') {
             try {
                 const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&countrycodes=de&limit=1`;
-                const geoUri = GLib.Uri.parse(geoUrl, GLib.UriFlags.NONE);
+                const geoUri = GLib.Uri.parse(geoUrl, GLib.UriFlags.ENCODED);
                 const geoMsg = new Soup.Message({
                     method: 'GET',
                     uri: geoUri,
                 });
-                geoMsg.request_headers.append('User-Agent', 'dwdbar-gnome-extension/1.0');
+                geoMsg.request_headers.append('User-Agent', 'dwdbar-gnome-extension/1.0 (https://github.com/joe/dwdbar)');
+                geoMsg.request_headers.append('Accept', 'application/json');
 
                 const geoBytes = await this._session.send_and_read_async(
                     geoMsg,
@@ -300,9 +309,9 @@ export class DwdClient {
         if (todayMin === Infinity) todayMin = currentRecord.temperature ?? 10;
         if (todayMax === -Infinity) todayMax = currentRecord.temperature ?? 20;
 
-        // 2. Stundenvorhersage (8 Stunden in 2-Stunden-Schritten: +2h, +4h, +6h, +8h)
+        // 2. Stundenvorhersage (10 Stunden in 2-Stunden-Schritten: +2h, +4h, +6h, +8h, +10h -> 5 Spalten)
         const hourlyForecast = [];
-        const targetOffsetsHours = [2, 4, 6, 8];
+        const targetOffsetsHours = [2, 4, 6, 8, 10];
         
         for (const offset of targetOffsetsHours) {
             const targetTime = nowTs + offset * 60 * 60 * 1000;
@@ -324,8 +333,18 @@ export class DwdClient {
                 const timeLabel = `${hours}:00`;
                 
                 const temp = closestRec.temperature;
-                const humidity = closestRec.relative_humidity;
-                const dewPoint = closestRec.dew_point ?? calculateDewPoint(temp, humidity);
+                let humidity = closestRec.relative_humidity;
+                let dewPoint = closestRec.dew_point;
+
+                // Falls DWD relative_humidity nicht direkt liefert, aus Temp & Taupunkt errechnen
+                if ((humidity === null || humidity === undefined || isNaN(humidity)) && temp !== null && dewPoint !== null) {
+                    humidity = calculateRelativeHumidity(temp, dewPoint);
+                }
+
+                // Falls Taupunkt fehlt, aus Temp & Feuchte errechnen
+                if ((dewPoint === null || dewPoint === undefined || isNaN(dewPoint)) && temp !== null && humidity !== null) {
+                    dewPoint = calculateDewPoint(temp, humidity);
+                }
 
                 hourlyForecast.push({
                     timeLabel: timeLabel,
@@ -382,9 +401,16 @@ export class DwdClient {
                 }
             }
 
-            const avgHum = humCount > 0 ? Math.round(sumHum / humCount) : (middayRecord.relative_humidity ?? 60);
             const repTemp = (maxT !== -Infinity && minT !== Infinity) ? (maxT + minT) / 2 : (middayRecord.temperature ?? 15);
-            const calculatedDp = calculateDewPoint(repTemp, avgHum);
+            let repHum = humCount > 0 ? Math.round(sumHum / humCount) : middayRecord.relative_humidity;
+            let repDp = middayRecord.dew_point;
+
+            if ((repHum === null || repHum === undefined || isNaN(repHum)) && repTemp !== null && repDp !== null) {
+                repHum = calculateRelativeHumidity(repTemp, repDp);
+            }
+            if ((repDp === null || repDp === undefined || isNaN(repDp)) && repTemp !== null && repHum !== null) {
+                repDp = calculateDewPoint(repTemp, repHum);
+            }
 
             dailyForecast.push({
                 date: dayKey,
@@ -393,8 +419,8 @@ export class DwdClient {
                 rawIcon: middayRecord.icon,
                 minTemp: minT !== Infinity ? Math.round(minT * 10) / 10 : null,
                 maxTemp: maxT !== -Infinity ? Math.round(maxT * 10) / 10 : null,
-                humidity: avgHum,
-                dewPoint: middayRecord.dew_point ?? calculatedDp,
+                humidity: repHum !== null ? Math.round(repHum) : null,
+                dewPoint: repDp !== null ? Math.round(repDp * 10) / 10 : null,
             });
 
             countDays++;
@@ -402,8 +428,15 @@ export class DwdClient {
 
         // Aktueller Zustand
         const currentTemp = currentRecord.temperature !== null ? Math.round(currentRecord.temperature * 10) / 10 : null;
-        const currentHum = currentRecord.relative_humidity !== null ? Math.round(currentRecord.relative_humidity) : null;
-        const currentDp = currentRecord.dew_point ?? calculateDewPoint(currentTemp, currentHum);
+        let currentHum = currentRecord.relative_humidity;
+        let currentDp = currentRecord.dew_point;
+
+        if ((currentHum === null || currentHum === undefined || isNaN(currentHum)) && currentTemp !== null && currentDp !== null) {
+            currentHum = calculateRelativeHumidity(currentTemp, currentDp);
+        }
+        if ((currentDp === null || currentDp === undefined || isNaN(currentDp)) && currentTemp !== null && currentHum !== null) {
+            currentDp = calculateDewPoint(currentTemp, currentHum);
+        }
 
         return {
             stationName: stationName,
@@ -411,7 +444,7 @@ export class DwdClient {
             icon: mapBrightSkyIcon(currentRecord.icon),
             rawIcon: currentRecord.icon,
             temperature: currentTemp,
-            humidity: currentHum,
+            humidity: currentHum !== null ? Math.round(currentHum) : null,
             dewPoint: currentDp !== null ? Math.round(currentDp * 10) / 10 : null,
             todayMin: Math.round(todayMin * 10) / 10,
             todayMax: Math.round(todayMax * 10) / 10,

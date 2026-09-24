@@ -1,5 +1,5 @@
 /**
- * dewpoint.js - Berechnung des Taupunkts mittels Magnus-Tetens-Formel
+ * dewpoint.js - Berechnung des Taupunkts und der relativen Feuchte mittels Magnus-Tetens-Formel
  */
 
 /**
@@ -37,6 +37,35 @@ export function calculateDewPoint(temp, humidity) {
 
     const dewPoint = (b * alpha) / denominator;
     return Math.round(dewPoint * 10) / 10;
+}
+
+/**
+ * Berechnet die relative Luftfeuchtigkeit (%) aus Temperatur (°C) und Taupunkt (°C).
+ * Ermöglicht die Ermittlung der Luftfeuchte bei DWD-Vorhersagen, welche Temperatur und Taupunkt liefern.
+ * 
+ * @param {number} temp - Temperatur in °C
+ * @param {number} dewPoint - Taupunkt in °C
+ * @returns {number|null} Berechnete relative Feuchte in % (ganzzahlig gerundet) oder null bei ungültigen Eingaben
+ */
+export function calculateRelativeHumidity(temp, dewPoint) {
+    if (temp === null || temp === undefined || isNaN(temp) ||
+        dewPoint === null || dewPoint === undefined || isNaN(dewPoint)) {
+        return null;
+    }
+
+    const t = Number(temp);
+    const td = Number(dewPoint);
+
+    const a = t >= 0 ? 17.27 : 21.875;
+    const b = t >= 0 ? 237.7 : 265.5;
+
+    const exponent = ((a * td) / (b + td)) - ((a * t) / (b + t));
+    let rh = 100 * Math.exp(exponent);
+
+    if (rh < 0) rh = 0;
+    if (rh > 100) rh = 100;
+
+    return Math.round(rh);
 }
 
 /**

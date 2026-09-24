@@ -6,6 +6,12 @@ import Soup from 'gi://Soup?version=3.0';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
+try {
+    Gio._promisify(Soup.Session.prototype, 'send_and_read_async', 'send_and_read_finish');
+} catch (e) {
+    // Bereits promisified
+}
+
 export class UpdateChecker {
     constructor(currentVersion = 1) {
         this._currentVersion = currentVersion;
@@ -32,7 +38,7 @@ export class UpdateChecker {
         }
 
         try {
-            const uri = GLib.Uri.parse(rawMetadataUrl.trim(), GLib.UriFlags.NONE);
+            const uri = GLib.Uri.parse(rawMetadataUrl.trim(), GLib.UriFlags.ENCODED);
             const message = new Soup.Message({
                 method: 'GET',
                 uri: uri,
