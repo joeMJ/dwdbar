@@ -94,8 +94,8 @@
 
 /* Alternativquelle Box */
 .dwdbar-alt-source-card {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background-color: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.16);
     border-radius: 8px;
     padding: 6px 10px;
     spacing: 10px;
@@ -118,9 +118,8 @@
 }
 
 .dwdbar-alt-source-values {
-    font-size: 9.5pt;
-    font-weight: 500;
-    color: #f6f5f4;
+    font-size: 10pt;
+    font-weight: 600;
 }
 
 /* Sektions-Titel */
@@ -144,7 +143,7 @@
 }
 
 .dwdbar-col {
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: rgba(128, 128, 128, 0.06);
     border-radius: 8px;
     padding: 6px 4px;
     spacing: 4px;
