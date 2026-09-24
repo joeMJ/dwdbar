@@ -8,6 +8,7 @@ set -e
 
 EXTENSION_UUID="dwdbar@krefeld.local"
 TARGET_DIR="${HOME}/.local/share/gnome-shell/extensions/${EXTENSION_UUID}"
+DESKTOP_DIR="${HOME}/.local/share/applications"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 print_info() {
@@ -54,6 +55,13 @@ do_uninstall() {
             UPDATED_EXTENSIONS=$(echo "$CURRENT_EXTENSIONS" | sed -E "s/, '${EXTENSION_UUID}'|'${EXTENSION_UUID}', |'${EXTENSION_UUID}'//g")
             gsettings set org.gnome.shell enabled-extensions "$UPDATED_EXTENSIONS" 2>/dev/null || true
         fi
+    fi
+
+    # Startverknüpfung (.desktop) entfernen
+    if [ -f "${DESKTOP_DIR}/dwdbar.desktop" ]; then
+        print_info "Entferne Startverknüpfung: ${DESKTOP_DIR}/dwdbar.desktop..."
+        rm -f "${DESKTOP_DIR}/dwdbar.desktop"
+        command -v update-desktop-database &>/dev/null && update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
     fi
 
     # Zielverzeichnis löschen
@@ -135,10 +143,19 @@ do_install() {
         gnome-extensions enable "${EXTENSION_UUID}" 2>/dev/null || true
     fi
 
+    # Startverknüpfung (.desktop) anlegen
+    if [ -f "${SCRIPT_DIR}/dwdbar.desktop" ]; then
+        print_info "Installiere Startverknüpfung nach ${DESKTOP_DIR}/dwdbar.desktop..."
+        mkdir -p "${DESKTOP_DIR}"
+        cp "${SCRIPT_DIR}/dwdbar.desktop" "${DESKTOP_DIR}/"
+        command -v update-desktop-database &>/dev/null && update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
+    fi
+
     print_success "Installation erfolgreich abgeschlossen!"
-    print_info "Hinweis: Unter GNOME Wayland kann ein Neuanmelden oder Ausführen von:"
-    print_info "  busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Extensions ReloadExtension s \"${EXTENSION_UUID}\""
-    print_info "die Extension sofort neu initialisieren."
+    print_info "WICHTIGER HINWEIS (GNOME Wayland):"
+    print_info "  GNOME Shell lädt neu installierte Erweiterungen auf Wayland erst beim Sitzungsstart."
+    print_info "  Bitte einmal ABMELDEN und wieder ANMELDEN (oder System neu starten)!"
+    print_info "  Danach ist das Icon in der oberen Leiste aktiv und die Startverknüpfung nutzbar."
 }
 
 # Parameter verarbeiten

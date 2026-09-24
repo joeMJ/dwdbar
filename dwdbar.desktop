@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=DWD Bar Wetter
+GenericName=Wetter & Taupunkt
+Comment=DWD Wetterdaten & Home Assistant Sensoren in der GNOME-Leiste
+Exec=gnome-extensions prefs dwdbar@krefeld.local
+Icon=weather-few-clouds
+Terminal=false
+Categories=GNOME;GTK;Utility;Settings;
+Keywords=Weather;Wetter;DWD;Taupunkt;HomeAssistant;
+StartupNotify=true
