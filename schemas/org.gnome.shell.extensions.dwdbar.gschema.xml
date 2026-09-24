@@ -102,7 +102,7 @@
     </key>
 
     <key name="git-raw-metadata-url" type="s">
-      <default>'http://192.168.10.179/joe/krefeld-dwdbar/raw/branch/main/metadata.json'</default>
+      <default>'http://192.168.10.179:3000/joe/krefeld-dwdbar/raw/branch/main/metadata.json'</default>
       <summary>Git Raw Metadata URL</summary>
       <description>HTTP(S)-URL zur Prüfung der neuesten metadata.json (Gitea / GitHub).</description>
     </key>

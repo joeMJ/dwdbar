@@ -78,7 +78,37 @@ export class DwdClient {
     }
 
     /**
+     * Führt einen HTTP-GET Request gegen Bright Sky aus und parst das JSON.
+     * @private
+     */
+    async _sendWeatherRequest(url, cancellable = null) {
+        try {
+            const uri = GLib.Uri.parse(url, GLib.UriFlags.NONE);
+            const message = new Soup.Message({
+                method: 'GET',
+                uri: uri,
+            });
+
+            const bytes = await this._session.send_and_read_async(
+                message,
+                GLib.PRIORITY_DEFAULT,
+                cancellable
+            );
+
+            if (message.get_status() !== Soup.Status.OK) {
+                return null;
+            }
+
+            const text = new TextDecoder('utf-8').decode(bytes.toArray());
+            return JSON.parse(text);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
      * Ruft aktuelle DWD-Wetterdaten sowie 8h- und 5-Tage-Vorhersagen ab.
+     * Fällt automatisch auf Koordinaten zurück, falls die Stations-ID fehlschlägt.
      * 
      * @param {number} lat - Breitengrad
      * @param {number} lon - Längengrad
@@ -95,35 +125,31 @@ export class DwdClient {
             const endDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
             const endDateStr = endDate.toISOString().slice(0, 10);
 
-            let url = `https://api.brightsky.dev/weather?date=${startDateStr}&last_date=${endDateStr}`;
+            let data = null;
+
+            // 1. Falls Stations-ID gesetzt: Versuche Abfrage mit Stationskennung
             if (stationId && stationId.trim() !== '') {
-                url += `&wmo_station_id=${encodeURIComponent(stationId.trim())}`;
-            } else {
-                url += `&lat=${lat}&lon=${lon}`;
+                const sId = encodeURIComponent(stationId.trim());
+                const stationUrl = `https://api.brightsky.dev/weather?date=${startDateStr}&last_date=${endDateStr}&wmo_station_id=${sId}`;
+                data = await this._sendWeatherRequest(stationUrl, cancellable);
+
+                // Falls wmo_station_id fehlschlug, versuche dwd_station_id
+                if (!data || !data.weather || data.weather.length === 0) {
+                    const dwdStationUrl = `https://api.brightsky.dev/weather?date=${startDateStr}&last_date=${endDateStr}&dwd_station_id=${sId}`;
+                    data = await this._sendWeatherRequest(dwdStationUrl, cancellable);
+                }
             }
 
-            const uri = GLib.Uri.parse(url, GLib.UriFlags.NONE);
-            const message = new Soup.Message({
-                method: 'GET',
-                uri: uri,
-            });
-
-            const bytes = await this._session.send_and_read_async(
-                message,
-                GLib.PRIORITY_DEFAULT,
-                cancellable
-            );
-
-            const status = message.get_status();
-            if (status !== Soup.Status.OK) {
-                console.warn(`[dwdbar] DWD Bright Sky request failed: HTTP ${status}`);
-                return null;
+            // 2. Automatischer Fallback auf Koordinaten, falls Stations-ID keine Daten liefert
+            if (!data || !data.weather || data.weather.length === 0) {
+                if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
+                    const coordUrl = `https://api.brightsky.dev/weather?date=${startDateStr}&last_date=${endDateStr}&lat=${lat}&lon=${lon}`;
+                    data = await this._sendWeatherRequest(coordUrl, cancellable);
+                }
             }
 
-            const text = new TextDecoder('utf-8').decode(bytes.toArray());
-            const data = JSON.parse(text);
-
-            if (!data.weather || data.weather.length === 0) {
+            if (!data || !data.weather || data.weather.length === 0) {
+                console.warn('[dwdbar] DWD Bright Sky: Keine Wetterdaten für Station/Koordinaten gefunden.');
                 return null;
             }
 
@@ -132,6 +158,109 @@ export class DwdClient {
             if (!cancellable || !cancellable.is_cancelled()) {
                 console.warn(`[dwdbar] Error fetching DWD weather data: ${e.message}`);
             }
+            return null;
+        }
+    }
+
+    /**
+     * Sucht DWD-Stationen in der Umgebung anhand eines Ortsnamens, einer PLZ oder Koordinaten.
+     * 
+     * @param {string} query - Suchtext (Ort, PLZ)
+     * @param {number|null} [lat=null] - Breitengrad (optional)
+     * @param {number|null} [lon=null] - Längengrad (optional)
+     * @param {Gio.Cancellable} [cancellable=null]
+     * @returns {Promise<{resolvedName: string, lat: number, lon: number, stations: Array}|null>}
+     */
+    async searchStations(query, lat = null, lon = null, cancellable = null) {
+        let searchLat = lat;
+        let searchLon = lon;
+        let resolvedName = query ? query.trim() : '';
+
+        // 1. Geocoding falls Ortsname oder PLZ angegeben
+        if (query && query.trim() !== '') {
+            try {
+                const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&countrycodes=de&limit=1`;
+                const geoUri = GLib.Uri.parse(geoUrl, GLib.UriFlags.NONE);
+                const geoMsg = new Soup.Message({
+                    method: 'GET',
+                    uri: geoUri,
+                });
+                geoMsg.request_headers.append('User-Agent', 'dwdbar-gnome-extension/1.0');
+
+                const geoBytes = await this._session.send_and_read_async(
+                    geoMsg,
+                    GLib.PRIORITY_DEFAULT,
+                    cancellable
+                );
+
+                if (geoMsg.get_status() === Soup.Status.OK) {
+                    const geoText = new TextDecoder('utf-8').decode(geoBytes.toArray());
+                    const geoData = JSON.parse(geoText);
+                    if (geoData && geoData.length > 0) {
+                        searchLat = parseFloat(geoData[0].lat);
+                        searchLon = parseFloat(geoData[0].lon);
+                        resolvedName = geoData[0].display_name.split(',')[0].trim();
+                    }
+                }
+            } catch (e) {
+                console.warn(`[dwdbar] Geocoding fehlgeschlagen: ${e.message}`);
+            }
+        }
+
+        if (searchLat === null || searchLon === null || isNaN(searchLat) || isNaN(searchLon)) {
+            return null;
+        }
+
+        // 2. Bright Sky Sources für die Koordinaten abrufen
+        try {
+            const sourcesUrl = `https://api.brightsky.dev/sources?lat=${searchLat}&lon=${searchLon}`;
+            const sourcesData = await this._sendWeatherRequest(sourcesUrl, cancellable);
+
+            if (!sourcesData || !sourcesData.sources || sourcesData.sources.length === 0) {
+                return null;
+            }
+
+            const candidateStations = [];
+            const seenNames = new Set();
+
+            for (const s of sourcesData.sources) {
+                if (s.observation_type === 'forecast' || s.observation_type === 'current' || s.observation_type === 'synop') {
+                    const normName = s.station_name.toUpperCase();
+                    if (!seenNames.has(normName)) {
+                        seenNames.add(normName);
+                        
+                        // Schönerer Anzeigename
+                        const titleName = s.station_name.split(' ')
+                            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                            .join(' ');
+
+                        candidateStations.push({
+                            rawName: s.station_name,
+                            displayName: titleName,
+                            wmoStationId: s.wmo_station_id || '',
+                            dwdStationId: s.dwd_station_id || '',
+                            stationId: s.wmo_station_id || s.dwd_station_id || '',
+                            lat: s.lat,
+                            lon: s.lon,
+                            distanceKm: (s.distance / 1000).toFixed(1),
+                            type: s.observation_type,
+                        });
+                    }
+                }
+
+                if (candidateStations.length >= 6) {
+                    break;
+                }
+            }
+
+            return {
+                resolvedName: resolvedName || 'Gefundener Standort',
+                lat: searchLat,
+                lon: searchLon,
+                stations: candidateStations,
+            };
+        } catch (e) {
+            console.warn(`[dwdbar] Sources-Abfrage fehlgeschlagen: ${e.message}`);
             return null;
         }
     }

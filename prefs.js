@@ -6,10 +6,12 @@ import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import { DwdClient } from './src/dwdClient.js';
 
 export default class DwdBarPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
+        const dwdClient = new DwdClient();
 
         // ==========================================
         // Seite 1: DWD & Anzeige
@@ -20,7 +22,7 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         });
         window.add(pageDisplay);
 
-        // Gruppe: Panel & Darstellung
+        // Gruppe 1: Panel & Darstellung
         const groupPanel = new Adw.PreferencesGroup({
             title: 'Panel-Leiste',
             description: 'Konfiguration der Anzeige in der oberen GNOME-Leiste',
@@ -73,10 +75,44 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         settings.bind('refresh-interval', intervalRow, 'value', Gio.SettingsBindFlags.DEFAULT);
         groupPanel.add(intervalRow);
 
-        // Gruppe: DWD Wetterdienst
+        // Gruppe 2: Stationsfinder (Automatische Suche)
+        const groupFinder = new Adw.PreferencesGroup({
+            title: 'DWD Stationsfinder',
+            description: 'Finde automatisch die passenden DWD-Stationen mit Messwerten und Vorhersage',
+        });
+        pageDisplay.add(groupFinder);
+
+        const searchEntryRow = new Adw.EntryRow({
+            title: 'Ort oder Postleitzahl',
+            text: settings.get_string('dwd-station-name') || '',
+        });
+        groupFinder.add(searchEntryRow);
+
+        const searchBtnRow = new Adw.ActionRow({
+            title: 'Stationen in der Umgebung suchen',
+            subtitle: 'Sucht offizielle DWD-Stationen im Umkreis des Ortes',
+        });
+
+        const searchBtn = new Gtk.Button({
+            label: 'Stationen suchen',
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        searchBtnRow.add_suffix(searchBtn);
+        groupFinder.add(searchBtnRow);
+
+        // Gruppe 3: Gefundene Stationen (dynamisch)
+        const groupResults = new Adw.PreferencesGroup({
+            title: 'Suchergebnisse',
+            description: 'Klicke auf Übernehmen, um die Station einzustellen',
+            visible: false,
+        });
+        pageDisplay.add(groupResults);
+
+        // Gruppe 4: Manuelle DWD Wetterdaten
         const groupDwd = new Adw.PreferencesGroup({
-            title: 'DWD Wetterdaten',
-            description: 'Standort- und Stationsangaben für die direkte DWD/Bright-Sky Abfrage',
+            title: 'Aktuelle Station & Koordinaten',
+            description: 'Manuelle Feinjustierung der Stations- und Standortangaben',
         });
         pageDisplay.add(groupDwd);
 
@@ -87,7 +123,7 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         groupDwd.add(stationNameRow);
 
         const stationIdRow = new Adw.EntryRow({
-            title: 'DWD / WMO Stations-ID',
+            title: 'DWD / WMO Stations-ID (optional)',
         });
         settings.bind('dwd-station-id', stationIdRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         groupDwd.add(stationIdRow);
@@ -111,6 +147,87 @@ export default class DwdBarPreferences extends ExtensionPreferences {
             if (!isNaN(val)) settings.set_double('dwd-longitude', val);
         });
         groupDwd.add(lonRow);
+
+        // Suchlogik implementieren
+        let currentResultRows = [];
+        const performSearch = () => {
+            const query = searchEntryRow.text ? searchEntryRow.text.trim() : '';
+            const currentLat = settings.get_double('dwd-latitude');
+            const currentLon = settings.get_double('dwd-longitude');
+
+            searchBtn.sensitive = false;
+            searchBtn.label = 'Suche...';
+
+            (async () => {
+                // Alte Zeilen entfernen
+                for (const row of currentResultRows) {
+                    groupResults.remove(row);
+                }
+                currentResultRows = [];
+
+                const res = await dwdClient.searchStations(query, currentLat, currentLon);
+
+                searchBtn.sensitive = true;
+                searchBtn.label = 'Stationen suchen';
+
+                if (!res || !res.stations || res.stations.length === 0) {
+                    groupResults.visible = true;
+                    groupResults.description = 'Keine DWD-Stationen für diese Suche gefunden.';
+                    const emptyRow = new Adw.ActionRow({
+                        title: 'Keine Treffer',
+                        subtitle: 'Bitte prüfe den Ortsnamen oder die Postleitzahl.',
+                    });
+                    groupResults.add(emptyRow);
+                    currentResultRows.push(emptyRow);
+                    return;
+                }
+
+                groupResults.visible = true;
+                groupResults.description = `Gefundener Ort: ${res.resolvedName} (${res.lat.toFixed(4)}, ${res.lon.toFixed(4)})`;
+
+                for (const station of res.stations) {
+                    const row = new Adw.ActionRow({
+                        title: `${station.displayName}`,
+                        subtitle: `DWD ID: ${station.stationId || 'Koordinaten-Lookup'} • Entfernung: ${station.distanceKm} km`,
+                    });
+
+                    const applyBtn = new Gtk.Button({
+                        label: 'Übernehmen',
+                        valign: Gtk.Align.CENTER,
+                        css_classes: ['pill'],
+                    });
+
+                    applyBtn.connect('clicked', () => {
+                        const newName = res.resolvedName || station.displayName;
+                        settings.set_string('dwd-station-name', newName);
+                        settings.set_string('dwd-station-id', station.wmoStationId || station.dwdStationId || '');
+                        settings.set_double('dwd-latitude', station.lat);
+                        settings.set_double('dwd-longitude', station.lon);
+
+                        // Eingabefelder aktualisieren
+                        stationNameRow.text = newName;
+                        stationIdRow.text = station.wmoStationId || station.dwdStationId || '';
+                        latRow.text = String(station.lat);
+                        lonRow.text = String(station.lon);
+
+                        applyBtn.label = '✓ Aktiv';
+                        applyBtn.sensitive = false;
+                    });
+
+                    row.add_suffix(applyBtn);
+                    groupResults.add(row);
+                    currentResultRows.push(row);
+                }
+            })().catch(err => {
+                console.error(`[dwdbar] Fehler bei Stationssuche: ${err.message}`);
+                searchBtn.sensitive = true;
+                searchBtn.label = 'Stationen suchen';
+            });
+        };
+
+        searchBtn.connect('clicked', performSearch);
+        searchEntryRow.connect('apply', performSearch);
+        searchEntryRow.connect('entry-activated', performSearch);
 
         // ==========================================
         // Seite 2: Home Assistant
