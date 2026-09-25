@@ -11,8 +11,8 @@
 }
 
 .dwdbar-panel-label {
-    font-weight: 500;
-    font-size: 12pt;
+    font-weight: bold;
+    font-size: inherit;
 }
 
 /* Popup Menü */
