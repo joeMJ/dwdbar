@@ -1,7 +1,16 @@
 *.compiled
 gschemas.compiled
 schemas/gschemas.compiled
+linux/schemas/gschemas.compiled
 *~
 *.log
 .DS_Store
 *.zip
+
+# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dotCover

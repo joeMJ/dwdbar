@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
-# update.sh - Standalone Update via Git für dwdbar
+# ==============================================================================
+# dwdbar - Multi-Platform Entrypoint
+# Delegiert auf Linux an linux/update.sh
+# ==============================================================================
+set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "${SCRIPT_DIR}/install.sh" --update "$@"
+
+if [ -f "${SCRIPT_DIR}/linux/update.sh" ]; then
+    exec "${SCRIPT_DIR}/linux/update.sh" "$@"
+else
+    echo -e "\033[1;31m[FEHLER]\033[0m linux/update.sh nicht gefunden!" >&2
+    exit 1
+fi
