@@ -144,44 +144,6 @@ class DwdIndicator extends PanelMenu.Button {
 
         this._contentBox.add_child(this._headerCard);
 
-        // A2. Tages-Höchst- und Tiefstwert (DWD)
-        this._minMaxCard = new St.BoxLayout({
-            style_class: 'dwdbar-minmax-card',
-            x_expand: true,
-            y_align: Clutter.ActorAlign.CENTER,
-            visible: true,
-        });
-
-        this._minMaxIcon = new St.Icon({
-            icon_name: 'weather-clear-symbolic',
-            icon_size: 16,
-            style_class: 'dwdbar-minmax-icon',
-        });
-        this._minMaxCard.add_child(this._minMaxIcon);
-
-        const minMaxInfoBox = new St.BoxLayout({
-            vertical: true,
-            x_expand: true,
-            style_class: 'dwdbar-alt-info-box',
-        });
-
-        this._minMaxTitle = new St.Label({
-            text: 'Max / Min (Quelle: DWD):',
-            style_class: 'dwdbar-alt-source-title',
-        });
-        this._minMaxTitle.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-        minMaxInfoBox.add_child(this._minMaxTitle);
-
-        this._minMaxValues = new St.Label({
-            text: '--,- °C / --,- °C',
-            style_class: 'dwdbar-alt-source-values',
-        });
-        this._minMaxValues.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-        minMaxInfoBox.add_child(this._minMaxValues);
-
-        this._minMaxCard.add_child(minMaxInfoBox);
-        this._contentBox.add_child(this._minMaxCard);
-
         // A2. Alternativquelle-Anzeige (DWD vs. HA)
         this._altSourceCard = new St.BoxLayout({
             style_class: 'dwdbar-alt-source-card',
@@ -223,19 +185,30 @@ class DwdIndicator extends PanelMenu.Button {
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
 
-        // B. 10-Stunden-Vorhersage (2h-Schritte, 5 Spalten)
+        // B. Heute (10-Stunden-Vorhersage & Min/Max)
         const hourlyTitleBox = new St.BoxLayout({
             style_class: 'dwdbar-section-title-box',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
         const hourlyLabel = new St.Label({
-            text: '10-Stunden-Vorhersage (2h-Schritte)',
+            text: 'Heute',
             style_class: 'dwdbar-section-title',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
         hourlyLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         hourlyLabel.clutter_text.line_wrap = false;
         hourlyTitleBox.add_child(hourlyLabel);
+
+        this._minMaxValues = new St.Label({
+            text: '--,- °C / --,- °C',
+            style_class: 'dwdbar-section-minmax',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._minMaxValues.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        hourlyTitleBox.add_child(this._minMaxValues);
+
         this._contentBox.add_child(hourlyTitleBox);
 
         this._hourlyForecastBox = new St.BoxLayout({
@@ -244,6 +217,14 @@ class DwdIndicator extends PanelMenu.Button {
         });
         this._contentBox.add_child(this._hourlyForecastBox);
 
+        const hourlySourceLabel = new St.Label({
+            text: 'Quelle: DWD',
+            style_class: 'dwdbar-section-source-badge',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.END,
+        });
+        this._contentBox.add_child(hourlySourceLabel);
+
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -251,11 +232,13 @@ class DwdIndicator extends PanelMenu.Button {
         const dailyTitleBox = new St.BoxLayout({
             style_class: 'dwdbar-section-title-box',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
         const dailyLabel = new St.Label({
             text: '5-Tage-Vorhersage',
             style_class: 'dwdbar-section-title',
             x_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
         });
         dailyLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         dailyLabel.clutter_text.line_wrap = false;
@@ -267,6 +250,14 @@ class DwdIndicator extends PanelMenu.Button {
             x_expand: true,
         });
         this._contentBox.add_child(this._dailyForecastBox);
+
+        const dailySourceLabel = new St.Label({
+            text: 'Quelle: DWD',
+            style_class: 'dwdbar-section-source-badge',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.END,
+        });
+        this._contentBox.add_child(dailySourceLabel);
 
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
@@ -296,6 +287,7 @@ class DwdIndicator extends PanelMenu.Button {
             }),
         });
         refreshBtn.connect('clicked', () => {
+            this._footerStatusLabel.text = 'Aktualisiere...';
             this._extension.refreshData();
         });
         this._footerBox.add_child(refreshBtn);
@@ -321,7 +313,7 @@ class DwdIndicator extends PanelMenu.Button {
     /**
      * Aktualisiert die UI mit den neuesten Sensor- und DWD-Wetterdaten.
      */
-    updateUI({ dwdData, haData, dewPoint, updateStatus }) {
+    updateUI({ dwdData, haData, dewPoint, updateStatus, isOffline = false, haConnected = false, lastTimestamp = null }) {
         // Konfigurierte Datenquellen abrufen
         const panelSource = this._settings.get_string('panel-data-source') || 'ha';
         const popupSource = this._settings.get_string('popup-data-source') || 'ha';
@@ -371,7 +363,7 @@ class DwdIndicator extends PanelMenu.Button {
 
         // 2. Popup Header (Hauptfeld)
         this._headerIcon.icon_name = iconName;
-        this._headerConditionLabel.text = dwdData?.conditionText || 'Aktuelles Wetter';
+        this._headerConditionLabel.text = dwdData?.conditionText || (isOffline ? 'Verbindung getrennt' : 'Aktuelles Wetter');
         
         const stationNamePref = this._settings.get_string('dwd-station-name');
         const stationDisplayName = stationNamePref || dwdData?.stationName || 'DWD Station';
@@ -422,13 +414,13 @@ class DwdIndicator extends PanelMenu.Button {
 
         this._headerSourceBadge.text = mainSourceText;
         
-        // 2. Max / Min (Quelle: DWD - bleibt immer DWD)
+        // 2. Max / Min (DWD) für Heute
         if (dwdData && dwdData.todayMax !== null && dwdData.todayMin !== null) {
-            this._minMaxValues.text = `${formatValue(dwdData.todayMax, '°C', 1)} / ${formatValue(dwdData.todayMin, '°C', 1)}`;
-            this._minMaxCard.visible = true;
-        } else {
-            this._minMaxValues.text = '--,- °C / --,- °C';
-            this._minMaxCard.visible = false;
+            this._minMaxValues.text = `Max ${formatValue(dwdData.todayMax, '°C', 1)} / Min ${formatValue(dwdData.todayMin, '°C', 1)}`;
+            this._minMaxValues.visible = true;
+        } else if (!this._minMaxValues.text || this._minMaxValues.text.includes('--')) {
+            this._minMaxValues.text = '';
+            this._minMaxValues.visible = false;
         }
 
         // 3. Alternativquelle anzeigen (falls aktiviert und Werte vorhanden)
@@ -442,8 +434,8 @@ class DwdIndicator extends PanelMenu.Button {
         }
 
         // 4. 10-Stunden-Vorhersage Spalten rendern (5 Spalten)
-        this._hourlyForecastBox.destroy_all_children();
         if (dwdData?.hourlyForecast && dwdData.hourlyForecast.length > 0) {
+            this._hourlyForecastBox.destroy_all_children();
             for (const h of dwdData.hourlyForecast) {
                 const col = new St.BoxLayout({
                     vertical: true,
@@ -485,11 +477,18 @@ class DwdIndicator extends PanelMenu.Button {
 
                 this._hourlyForecastBox.add_child(col);
             }
+        } else if (this._hourlyForecastBox.get_n_children() === 0) {
+            const emptyLabel = new St.Label({
+                text: 'Keine Vorhersagedaten verfügbar (Offline)',
+                style_class: 'dwdbar-empty-placeholder',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            this._hourlyForecastBox.add_child(emptyLabel);
         }
 
         // 5. 5-Tage-Vorhersage Spalten rendern (5 Spalten)
-        this._dailyForecastBox.destroy_all_children();
         if (dwdData?.dailyForecast && dwdData.dailyForecast.length > 0) {
+            this._dailyForecastBox.destroy_all_children();
             for (const d of dwdData.dailyForecast) {
                 const col = new St.BoxLayout({
                     vertical: true,
@@ -537,14 +536,35 @@ class DwdIndicator extends PanelMenu.Button {
 
                 this._dailyForecastBox.add_child(col);
             }
+        } else if (this._dailyForecastBox.get_n_children() === 0) {
+            const emptyLabel = new St.Label({
+                text: 'Keine Vorhersagedaten verfügbar (Offline)',
+                style_class: 'dwdbar-empty-placeholder',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            this._dailyForecastBox.add_child(emptyLabel);
         }
 
         // 6. Footer Stand
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        let statusMsg = `Stand: ${timeStr} Uhr`;
-        if (haData?.temp !== null && haData?.temp !== undefined) {
-            statusMsg += ' • HA verbunden';
+        let statusMsg = '';
+        if (lastTimestamp instanceof Date) {
+            const timeStr = `${String(lastTimestamp.getHours()).padStart(2, '0')}:${String(lastTimestamp.getMinutes()).padStart(2, '0')}`;
+            statusMsg = `Stand: ${timeStr} Uhr`;
+        } else {
+            statusMsg = 'Stand: Initialisiere...';
+        }
+
+        if (isOffline) {
+            statusMsg += ' (Offline)';
+        }
+
+        const haEnabled = this._settings.get_boolean('ha-enabled');
+        if (haEnabled) {
+            if (haConnected) {
+                statusMsg += ' • HA';
+            } else {
+                statusMsg += ' • HA offline';
+            }
         }
         this._footerStatusLabel.text = statusMsg;
 

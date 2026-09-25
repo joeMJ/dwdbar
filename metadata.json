@@ -10,6 +10,6 @@
     "50"
   ],
   "url": "https://192.168.10.179/joe/krefeld-dwdbar",
-  "version": 2,
+  "version": 3,
   "settings-schema": "org.gnome.shell.extensions.dwdbar"
 }

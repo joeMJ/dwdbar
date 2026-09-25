@@ -135,6 +135,20 @@
     opacity: 0.75;
 }
 
+.dwdbar-section-minmax {
+    font-size: 8.5pt;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.dwdbar-section-source-badge {
+    font-size: 8pt;
+    font-weight: bold;
+    color: #78aeed;
+    opacity: 0.9;
+    padding-right: 4px;
+}
+
 /* Forecast Spalten (10h und 5 Tage) */
 .dwdbar-hourly-box,
 .dwdbar-daily-box {
@@ -196,3 +210,10 @@
     padding: 5px 8px;
     border-radius: 6px;
 }
+
+.dwdbar-empty-placeholder {
+    font-size: 9.5pt;
+    opacity: 0.6;
+    padding: 10px 4px;
+}
+

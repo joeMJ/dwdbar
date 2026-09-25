@@ -24,7 +24,18 @@ export default class DwdBarExtension extends Extension {
 
         this._lastUpdateStatus = null;
         this._lastDwdData = null;
+        this._lastDwdTimestamp = null;
         this._lastHaData = null;
+        this._lastHaTimestamp = null;
+        this._isOffline = false;
+        this._haConnected = false;
+
+        this._timeoutId = null;
+        this._retryTimeoutId = null;
+        this._resumeTimeoutId = null;
+        this._networkMonitor = null;
+        this._netChangedId = null;
+        this._sleepSignalId = null;
 
         this._createIndicator();
 
@@ -46,6 +57,12 @@ export default class DwdBarExtension extends Extension {
             })
         );
 
+        // Netzwerküberwachung (NetworkManager / Gio.NetworkMonitor)
+        this._setupNetworkMonitor();
+
+        // Standby/Resume-Erkennung (systemd logind PrepareForSleep)
+        this._setupSleepMonitor();
+
         // Timer starten
         this._restartTimer();
 
@@ -64,6 +81,27 @@ export default class DwdBarExtension extends Extension {
             this._timeoutId = null;
         }
 
+        if (this._retryTimeoutId) {
+            GLib.Source.remove(this._retryTimeoutId);
+            this._retryTimeoutId = null;
+        }
+
+        if (this._resumeTimeoutId) {
+            GLib.Source.remove(this._resumeTimeoutId);
+            this._resumeTimeoutId = null;
+        }
+
+        if (this._netChangedId && this._networkMonitor) {
+            this._networkMonitor.disconnect(this._netChangedId);
+            this._netChangedId = null;
+        }
+        this._networkMonitor = null;
+
+        if (this._sleepSignalId) {
+            Gio.DBus.system.signal_unsubscribe(this._sleepSignalId);
+            this._sleepSignalId = null;
+        }
+
         if (this._settingsSignals && this._settings) {
             for (const id of this._settingsSignals) {
                 this._settings.disconnect(id);
@@ -80,6 +118,89 @@ export default class DwdBarExtension extends Extension {
         this._dwdClient = null;
         this._updateChecker = null;
         this._settings = null;
+    }
+
+    _setupNetworkMonitor() {
+        try {
+            this._networkMonitor = Gio.NetworkMonitor.get_default();
+            if (this._networkMonitor) {
+                this._netChangedId = this._networkMonitor.connect('network-changed', (monitor, available) => {
+                    if (available) {
+                        // Sobald Netzwerk wieder verfügbar ist:
+                        const isStale = !this._lastDwdTimestamp || (Date.now() - this._lastDwdTimestamp.getTime() > 3 * 60 * 1000);
+                        if (this._isOffline || !this._lastDwdData || isStale) {
+                            if (this._resumeTimeoutId) {
+                                GLib.Source.remove(this._resumeTimeoutId);
+                                this._resumeTimeoutId = null;
+                            }
+                            // 3 Sekunden Verzögerung für DNS/Routing
+                            this._resumeTimeoutId = GLib.timeout_add_seconds(
+                                GLib.PRIORITY_DEFAULT,
+                                3,
+                                () => {
+                                    this._resumeTimeoutId = null;
+                                    this.refreshData();
+                                    return GLib.SOURCE_REMOVE;
+                                }
+                            );
+                        }
+                    }
+                });
+            }
+        } catch (e) {
+            console.warn(`[dwdbar] Failed to initialize NetworkMonitor: ${e.message}`);
+        }
+    }
+
+    _setupSleepMonitor() {
+        try {
+            this._sleepSignalId = Gio.DBus.system.signal_subscribe(
+                'org.freedesktop.login1',
+                'org.freedesktop.login1.Manager',
+                'PrepareForSleep',
+                '/org/freedesktop/login1',
+                null,
+                Gio.DBusSignalFlags.NONE,
+                (conn, sender, path, iface, signal, params) => {
+                    try {
+                        const [aboutToSuspend] = params.recursiveUnpack();
+                        if (aboutToSuspend) {
+                            // System geht in den Standby
+                            if (this._retryTimeoutId) {
+                                GLib.Source.remove(this._retryTimeoutId);
+                                this._retryTimeoutId = null;
+                            }
+                            if (this._resumeTimeoutId) {
+                                GLib.Source.remove(this._resumeTimeoutId);
+                                this._resumeTimeoutId = null;
+                            }
+                        } else {
+                            // System wacht aus dem Standby auf
+                            this._restartTimer();
+
+                            if (this._resumeTimeoutId) {
+                                GLib.Source.remove(this._resumeTimeoutId);
+                                this._resumeTimeoutId = null;
+                            }
+                            // 6 Sekunden warten, bis WLAN & IP stabil verbunden sind
+                            this._resumeTimeoutId = GLib.timeout_add_seconds(
+                                GLib.PRIORITY_DEFAULT,
+                                6,
+                                () => {
+                                    this._resumeTimeoutId = null;
+                                    this.refreshData();
+                                    return GLib.SOURCE_REMOVE;
+                                }
+                            );
+                        }
+                    } catch (err) {
+                        console.warn(`[dwdbar] Error in PrepareForSleep signal callback: ${err.message}`);
+                    }
+                }
+            );
+        } catch (e) {
+            console.warn(`[dwdbar] Failed to subscribe to PrepareForSleep: ${e.message}`);
+        }
     }
 
     _createIndicator() {
@@ -119,8 +240,30 @@ export default class DwdBarExtension extends Extension {
         );
     }
 
+    _scheduleRetry(seconds = 20) {
+        if (this._retryTimeoutId) {
+            GLib.Source.remove(this._retryTimeoutId);
+            this._retryTimeoutId = null;
+        }
+
+        this._retryTimeoutId = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT,
+            seconds,
+            () => {
+                this._retryTimeoutId = null;
+                this.refreshData();
+                return GLib.SOURCE_REMOVE;
+            }
+        );
+    }
+
     async refreshData() {
         if (!this._settings || !this._indicator) return;
+
+        if (this._retryTimeoutId) {
+            GLib.Source.remove(this._retryTimeoutId);
+            this._retryTimeoutId = null;
+        }
 
         const haEnabled = this._settings.get_boolean('ha-enabled');
         const haBaseUrl = this._settings.get_string('ha-base-url');
@@ -153,8 +296,32 @@ export default class DwdBarExtension extends Extension {
                 updatePromise
             ]);
 
-            this._lastHaData = haData;
-            this._lastDwdData = dwdData;
+            const dwdSuccess = (dwdData !== null && dwdData !== undefined);
+            const haHasValues = haData && (haData.temp !== null || haData.humidity !== null);
+
+            // DWD-Daten nur aktualisieren, wenn neue gültige Daten empfangen wurden
+            // (Cache beibehalten, falls offline!)
+            if (dwdSuccess) {
+                this._lastDwdData = dwdData;
+                this._lastDwdTimestamp = new Date();
+                this._isOffline = false;
+            } else {
+                this._isOffline = true;
+                this._scheduleRetry(20);
+            }
+
+            // Home Assistant Daten behandeln (Cache beibehalten, falls Verbindung fehlschlägt)
+            if (haHasValues) {
+                this._lastHaData = haData;
+                this._lastHaTimestamp = new Date();
+                this._haConnected = true;
+            } else if (haEnabled) {
+                this._haConnected = false;
+                if (!this._lastHaData) {
+                    this._scheduleRetry(20);
+                }
+            }
+
             if (updateStatus) {
                 this._lastUpdateStatus = updateStatus;
             }
@@ -162,6 +329,9 @@ export default class DwdBarExtension extends Extension {
             this._applyDataToUI();
         } catch (e) {
             console.warn(`[dwdbar] Error in refreshData: ${e.message}`);
+            this._isOffline = true;
+            this._scheduleRetry(20);
+            this._applyDataToUI();
         }
     }
 
@@ -179,6 +349,9 @@ export default class DwdBarExtension extends Extension {
             haData: this._lastHaData,
             dewPoint: dewPoint,
             updateStatus: this._lastUpdateStatus,
+            isOffline: this._isOffline,
+            haConnected: this._haConnected,
+            lastTimestamp: this._lastDwdTimestamp || this._lastHaTimestamp,
         });
     }
 }

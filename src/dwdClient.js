@@ -129,8 +129,8 @@ export class DwdClient {
             const now = new Date();
             const startDateStr = now.toISOString().slice(0, 10);
             
-            // 5 Tage voraus
-            const endDate = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+            // 6 Tage voraus (heute + 5 Folgetage)
+            const endDate = new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000);
             const endDateStr = endDate.toISOString().slice(0, 10);
 
             let data = null;
@@ -296,12 +296,18 @@ export class DwdClient {
             stationName = data.sources[0].station_name || stationName;
         }
 
-        // 1. Tages-Höchst- und Tiefstwert für heute ermitteln
-        const todayStr = now.toISOString().slice(0, 10);
+        // 1. Tages-Höchst- und Tiefstwert für heute ermitteln (anhand des lokalen Datums)
+        const localYear = now.getFullYear();
+        const localMonth = String(now.getMonth() + 1).padStart(2, '0');
+        const localDay = String(now.getDate()).padStart(2, '0');
+        const localTodayKey = `${localYear}-${localMonth}-${localDay}`;
+
         let todayMin = Infinity;
         let todayMax = -Infinity;
         for (const rec of records) {
-            if (rec.timestamp.startsWith(todayStr) && rec.temperature !== null) {
+            const d = new Date(rec.timestamp);
+            const recKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (recKey === localTodayKey && rec.temperature !== null) {
                 if (rec.temperature < todayMin) todayMin = rec.temperature;
                 if (rec.temperature > todayMax) todayMax = rec.temperature;
             }
@@ -359,14 +365,15 @@ export class DwdClient {
             }
         }
 
-        // 3. 5-Tage-Vorhersage (Gruppierung nach Tagen)
+        // 3. 5-Tage-Vorhersage (Gruppierung nach lokalen Tagen, Beginn ab MORGEN)
         const dailyGroups = new Map();
         for (const rec of records) {
-            const dayKey = rec.timestamp.slice(0, 10);
-            if (!dailyGroups.has(dayKey)) {
-                dailyGroups.set(dayKey, []);
+            const d = new Date(rec.timestamp);
+            const recKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (!dailyGroups.has(recKey)) {
+                dailyGroups.set(recKey, []);
             }
-            dailyGroups.get(dayKey).push(rec);
+            dailyGroups.get(recKey).push(rec);
         }
 
         const weekdayNames = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -374,9 +381,12 @@ export class DwdClient {
         let countDays = 0;
 
         for (const [dayKey, dayRecords] of dailyGroups.entries()) {
+            // Heutigen Tag überspringen, da "Heute" bereits oben dargestellt wird
+            if (dayKey <= localTodayKey) continue;
             if (countDays >= 5) break;
 
-            const dateObj = new Date(dayKey + 'T12:00:00Z');
+            const [y, m, dNum] = dayKey.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, dNum, 12, 0, 0);
             const weekday = weekdayNames[dateObj.getDay()];
 
             let minT = Infinity;
