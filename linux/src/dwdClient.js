@@ -360,6 +360,7 @@ export class DwdClient {
                     temperature: temp !== null ? Math.round(temp * 10) / 10 : null,
                     humidity: humidity !== null ? Math.round(humidity) : null,
                     dewPoint: dewPoint !== null ? Math.round(dewPoint * 10) / 10 : null,
+                    precipitationProbability: closestRec.precipitation_probability ?? null,
                     condition: closestRec.condition,
                 });
             }
@@ -394,6 +395,7 @@ export class DwdClient {
             let sumHum = 0;
             let humCount = 0;
             let middayRecord = dayRecords[Math.floor(dayRecords.length / 2)];
+            let maxPrecipProb = null;
 
             // Suche Repräsentant um die Mittagszeit (ca. 12-14 Uhr)
             for (const r of dayRecords) {
@@ -405,6 +407,8 @@ export class DwdClient {
                     sumHum += r.relative_humidity;
                     humCount++;
                 }
+                if (r.precipitation_probability !== null && r.precipitation_probability !== undefined)
+                    maxPrecipProb = Math.max(maxPrecipProb ?? 0, r.precipitation_probability);
                 const hour = new Date(r.timestamp).getUTCHours();
                 if (hour >= 11 && hour <= 14) {
                     middayRecord = r;
@@ -431,10 +435,23 @@ export class DwdClient {
                 maxTemp: maxT !== -Infinity ? Math.round(maxT * 10) / 10 : null,
                 humidity: repHum !== null ? Math.round(repHum) : null,
                 dewPoint: repDp !== null ? Math.round(repDp * 10) / 10 : null,
+                // Höchste stündliche Regenwahrscheinlichkeit des Tages
+                precipitationProbability: maxPrecipProb,
             });
 
             countDays++;
         }
+
+        // Regenausblick für Hinweise: kommende Stunden bis morgen 12 Uhr
+        const outlookEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 12, 0, 0).getTime();
+        const rainOutlook = records
+            .map(r => ({ time: new Date(r.timestamp), rec: r }))
+            .filter(({ time }) => time.getTime() > nowTs && time.getTime() <= outlookEnd)
+            .map(({ time, rec }) => ({
+                time,
+                probability: rec.precipitation_probability ?? null,
+                precipitation: rec.precipitation ?? null,
+            }));
 
         // Aktueller Zustand
         const currentTemp = currentRecord.temperature !== null ? Math.round(currentRecord.temperature * 10) / 10 : null;
@@ -460,6 +477,7 @@ export class DwdClient {
             todayMax: Math.round(todayMax * 10) / 10,
             hourlyForecast: hourlyForecast,
             dailyForecast: dailyForecast,
+            rainOutlook: rainOutlook,
             timestamp: currentRecord.timestamp,
         };
     }

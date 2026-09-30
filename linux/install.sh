@@ -191,7 +191,11 @@ do_install() {
     cp -r "${SCRIPT_DIR}/metadata.json" "${staging}/"
     cp -r "${SCRIPT_DIR}/extension.js" "${staging}/"
     cp -r "${SCRIPT_DIR}/prefs.js" "${staging}/"
-    cp -r "${SCRIPT_DIR}/stylesheet.css" "${staging}/"
+    # Stylesheets: GNOME Shell lädt je nach Farbschema stylesheet-light.css bzw.
+    # stylesheet-dark.css (Fallback stylesheet.css) – nur eine Datei, daher vollständig
+    cp "${SCRIPT_DIR}/stylesheet.css" "${staging}/stylesheet.css"
+    cp "${SCRIPT_DIR}/stylesheet.css" "${staging}/stylesheet-dark.css"
+    cat "${SCRIPT_DIR}/stylesheet.css" "${SCRIPT_DIR}/theme-light.css" > "${staging}/stylesheet-light.css"
     cp -r "${SCRIPT_DIR}/src" "${staging}/"
     if [ -d "${SCRIPT_DIR}/icons" ]; then
         cp -r "${SCRIPT_DIR}/icons" "${staging}/"

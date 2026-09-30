@@ -13,6 +13,11 @@ import { DwdClient } from './src/dwdClient.js';
 import { UpdateChecker } from './src/updater.js';
 import { calculateDewPoint } from './src/dewpoint.js';
 import { lookupHaTokenNoPrompt, migrateLegacyHaTokenNoPrompt } from './src/secretStore.js';
+import { HealthClient } from './src/healthClient.js';
+import { buildHints } from './src/hints.js';
+
+// Pollen und UV werden vom DWD nur einmal täglich aktualisiert
+const HEALTH_CACHE_MS = 60 * 60 * 1000;
 
 export default class DwdBarExtension extends Extension {
     enable() {
@@ -22,6 +27,12 @@ export default class DwdBarExtension extends Extension {
         this._haClient = new HaClient();
         this._dwdClient = new DwdClient();
         this._updateChecker = new UpdateChecker(this.metadata.version || 1);
+        this._healthClient = new HealthClient();
+        this._lastPollen = null;
+        this._lastUv = null;
+        this._lastAlerts = null;
+        this._pollenFetched = { key: null, at: 0 };
+        this._uvFetched = { key: null, at: 0 };
 
         this._lastUpdateStatus = null;
         this._lastDwdData = null;
@@ -119,6 +130,10 @@ export default class DwdBarExtension extends Extension {
         this._haClient = null;
         this._dwdClient = null;
         this._updateChecker = null;
+        this._healthClient = null;
+        this._lastPollen = null;
+        this._lastUv = null;
+        this._lastAlerts = null;
         this._settings = null;
     }
 
@@ -287,6 +302,52 @@ export default class DwdBarExtension extends Extension {
     }
 
     /**
+     * Pollen, UV-Index und amtliche Warnungen abrufen. Fehler einzelner Quellen
+     * werden protokolliert, der letzte gültige Stand bleibt erhalten.
+     */
+    async _refreshHealthData(lat, lon) {
+        const s = this._settings;
+        const now = Date.now();
+        const tasks = [];
+
+        const pollenWanted = s.get_boolean('pollen-enabled') || s.get_boolean('hint-pollen');
+        const pollenKey = s.get_string('pollen-region');
+        if (!pollenWanted) {
+            this._lastPollen = null;
+        } else if (pollenKey !== this._pollenFetched.key || now - this._pollenFetched.at > HEALTH_CACHE_MS) {
+            tasks.push(this._healthClient.fetchPollen(pollenKey, this._cancellable).then(p => {
+                this._lastPollen = p;
+                this._pollenFetched = { key: pollenKey, at: now };
+            }).catch(e => this._logHealthError('Pollen', e)));
+        }
+
+        const uvKey = s.get_string('uv-city');
+        if (!s.get_boolean('hint-uv')) {
+            this._lastUv = null;
+        } else if (uvKey !== this._uvFetched.key || now - this._uvFetched.at > HEALTH_CACHE_MS) {
+            tasks.push(this._healthClient.fetchUv(uvKey, this._cancellable).then(u => {
+                this._lastUv = u;
+                this._uvFetched = { key: uvKey, at: now };
+            }).catch(e => this._logHealthError('UV-Index', e)));
+        }
+
+        if (!s.get_boolean('hint-warnings')) {
+            this._lastAlerts = null;
+        } else if (!isNaN(lat) && !isNaN(lon)) {
+            tasks.push(this._healthClient.fetchAlerts(lat, lon, this._cancellable).then(a => {
+                this._lastAlerts = a;
+            }).catch(e => this._logHealthError('Warnungen', e)));
+        }
+
+        await Promise.all(tasks);
+    }
+
+    _logHealthError(what, e) {
+        if (!this._cancellable?.is_cancelled())
+            console.warn(`[dwdbar] ${what} nicht abrufbar: ${e.message}`);
+    }
+
+    /**
      * Wird aus Signal-Handlern und Timern ohne await aufgerufen – lehnt daher nie ab
      * und protokolliert Fehler mit Stack (sonst nur „Unhandled promise rejection“).
      */
@@ -337,10 +398,13 @@ export default class DwdBarExtension extends Extension {
                 ? this._updateChecker.checkForUpdates(updateUrl, this._cancellable)
                 : Promise.resolve(null);
 
+            const healthPromise = this._refreshHealthData(dwdLat, dwdLon);
+
             const [haData, dwdData, updateStatus] = await Promise.all([
                 haPromise,
                 dwdPromise,
-                updatePromise
+                updatePromise,
+                healthPromise,
             ]);
 
             const dwdSuccess = (dwdData !== null && dwdData !== undefined);
@@ -394,6 +458,22 @@ export default class DwdBarExtension extends Extension {
         const hum = this._lastHaData?.humidity ?? this._lastDwdData?.humidity ?? null;
         const dewPoint = calculateDewPoint(temp, hum);
 
+        const pollenTypes = this._settings.get_strv('pollen-types');
+        const hints = buildHints({
+            dwdData: this._lastDwdData,
+            pollen: this._lastPollen,
+            uv: this._lastUv,
+            alerts: this._lastAlerts,
+            options: {
+                warnings: this._settings.get_boolean('hint-warnings'),
+                rain: this._settings.get_boolean('hint-rain'),
+                rainThreshold: this._settings.get_int('hint-rain-threshold'),
+                pollen: this._settings.get_boolean('hint-pollen'),
+                uv: this._settings.get_boolean('hint-uv'),
+                pollenTypes,
+            },
+        });
+
         this._indicator.updateUI({
             dwdData: this._lastDwdData,
             haData: this._lastHaData,
@@ -402,6 +482,9 @@ export default class DwdBarExtension extends Extension {
             isOffline: this._isOffline,
             haConnected: this._haConnected,
             haKeyringLocked: this._haKeyringLocked,
+            hints,
+            pollen: this._settings.get_boolean('pollen-enabled') ? this._lastPollen : null,
+            pollenTypes,
             lastTimestamp: this._lastDwdTimestamp || this._lastHaTimestamp,
         });
     }

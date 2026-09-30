@@ -1,0 +1,50 @@
+/*
+ * theme-light.css – Farbanpassungen für den hellen GNOME-Stil.
+ * Wird von install.sh an stylesheet.css angehängt und als stylesheet-light.css
+ * installiert (GNOME Shell lädt je nach Farbschema stylesheet-light/-dark.css).
+ * Die Blautöne aus stylesheet.css (#78aeed) sind auf hellem Grund kaum lesbar.
+ */
+
+.dwdbar-update-banner {
+    background-color: rgba(53, 132, 228, 0.12);
+    border: 1px solid rgba(26, 95, 180, 0.5);
+}
+
+.dwdbar-update-icon,
+.dwdbar-source-badge,
+.dwdbar-minmax-icon,
+.dwdbar-alt-source-icon,
+.dwdbar-section-source-badge,
+.dwdbar-col-hum,
+.dwdbar-col-rain,
+.dwdbar-col-rain-icon {
+    color: #1a5fb4;
+}
+
+.dwdbar-section-source-badge,
+.dwdbar-col-hum {
+    opacity: 1;
+}
+
+.dwdbar-hint {
+    background-color: rgba(229, 165, 10, 0.16);
+    border: 1px solid rgba(200, 136, 0, 0.5);
+}
+
+.dwdbar-hint-warning {
+    background-color: rgba(255, 120, 0, 0.16);
+    border: 1px solid rgba(230, 97, 0, 0.6);
+}
+
+.dwdbar-hint-severe {
+    background-color: rgba(237, 51, 59, 0.14);
+    border: 1px solid rgba(192, 28, 40, 0.6);
+}
+
+.dwdbar-col-pollen {
+    color: #9c6e03;
+}
+
+.dwdbar-col-pollen-none {
+    color: rgba(0, 0, 0, 0.35);
+}

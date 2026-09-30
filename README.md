@@ -7,7 +7,7 @@
 > * **Keine Unterstützung:** Issues und Pull Requests werden nicht bearbeitet, Feature-Wünsche nicht umgesetzt. Bitte keine Issues eröffnen.
 > * **Keine Garantie:** Bereitstellung „wie besehen“, ohne jede Gewährleistung und Haftung. Nutzung auf eigenes Risiko.
 > * **Eigene Umgebung:** Entwickelt und getestet nur auf meinen eigenen Ubuntu-Rechnern (24.04 / 26.04, GNOME 46–50). Auf anderen Systemen kann es fehlschlagen. Windows- und macOS-Varianten existieren bisher nur als Planung.
-> * **Zugangsdaten & Netzwerk:** Die Extension läuft mit den Rechten deiner GNOME-Sitzung. Ein optionales Home-Assistant-Token wird im GNOME-Schlüsselbund (libsecret) gespeichert – verschlüsselt, solange du abgemeldet bist; während der Sitzung können Programme deines Benutzers es lesen. Verwende am besten ein Token eines eigenen HA-Benutzers ohne Administratorrechte. Sie ruft regelmäßig die Bright Sky API, bei der Stationssuche OpenStreetMap Nominatim, deine Home-Assistant-Instanz und für die Update-Prüfung eine entfernte `metadata.json` ab. **Lies den Code, bevor du ihn installierst.**
+> * **Zugangsdaten & Netzwerk:** Die Extension läuft mit den Rechten deiner GNOME-Sitzung. Ein optionales Home-Assistant-Token wird im GNOME-Schlüsselbund (libsecret) gespeichert – verschlüsselt, solange du abgemeldet bist; während der Sitzung können Programme deines Benutzers es lesen. Verwende am besten ein Token eines eigenen HA-Benutzers ohne Administratorrechte. Sie ruft regelmäßig die Bright Sky API, DWD Open Data (Pollenflug, UV-Index), bei der Stationssuche OpenStreetMap Nominatim, deine Home-Assistant-Instanz und für die Update-Prüfung eine entfernte `metadata.json` ab. **Lies den Code, bevor du ihn installierst.**
 > * **Keine Updates zugesichert:** Es kann jederzeit ohne Ankündigung Änderungen, Brüche oder die Löschung des Repos geben. Gern selbst forken und anpassen.
 >
 > *Private hobby project, unmaintained, provided as-is. No support, no issues, no warranty. Fork it if you like.*
@@ -37,9 +37,12 @@
 * **Popup-Kachel (bei Klick auf das Bar-Icon):**
   * **Aktuelles Wetter:** Großes Zustandsicon, Wetterlage, Stationsname, Temperatur & Quelle.
   * **Alternativquelle (optional):** Zeigt die zweite Quelle (z. B. DWD vs. HA) parallel an.
-  * **Heute:** 10-Stunden-Vorhersage (+2h, +4h, +6h, +8h, +10h) mit Tages-Höchst- und Tiefstwerten (`Max ... / Min ...`) und Quellenangabe.
-  * **5-Tage-Vorhersage:** Vorhersage der kommenden 5 Tage (ab morgigem Tag) mit Min/Max, Feuchte, Taupunkt und Quellenangabe.
+  * **Hinweise:** Höchstens zwei farbig hinterlegte Hinweise, nach Dringlichkeit: amtliche DWD-Warnungen (Unwetter, Gewitter, Hitze, Frost …), bevorstehender Regen bis morgen Mittag („In etwa 1 Stunde ist mit Regen zu rechnen“), Pollenbelastung und hoher UV-Index. Jede Art einzeln abschaltbar.
+  * **Heute:** 10-Stunden-Vorhersage (+2h, +4h, +6h, +8h, +10h) mit Tages-Höchst- und Tiefstwerten (`Max ... / Min ...`), Regenwahrscheinlichkeit pro Stunde, Pollenflug heute (Arten mit Belastung, Stufe 0–3) und Quellenangabe.
+  * **5-Tage-Vorhersage:** Vorhersage der kommenden 5 Tage (ab morgigem Tag) mit Min/Max, höchster Regenwahrscheinlichkeit des Tages, Pollenbelastung (morgen und übermorgen), Feuchte, Taupunkt und Quellenangabe.
   * **Footer:** Zeitstempel des letzten erfolgreichen Abrufs (`Stand: HH:MM Uhr`), Verbindungsstatus und Schnellaktionen.
+
+* **Datenquellen:** Datenbasis Deutscher Wetterdienst – Beobachtungen, MOSMIX-Vorhersage und amtliche Warnungen über [Bright Sky](https://brightsky.dev), Pollenflug- und UV-Gefahrenindex direkt von [DWD Open Data](https://opendata.dwd.de/climate_environment/health/alerts/); Stationssuche über OpenStreetMap Nominatim; optional Home Assistant. Eine Übersicht steht in den Einstellungen unter *Datenquellen*. dwdbar ist kein Angebot des DWD.
 
 ---
 

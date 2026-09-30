@@ -9,6 +9,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import { DwdClient } from './src/dwdClient.js';
 import { lookupHaToken, storeHaToken, clearHaToken, migrateLegacyHaToken } from './src/secretStore.js';
+import { POLLEN_TYPES, POLLEN_REGIONS, UV_CITIES } from './src/healthClient.js';
 
 export default class DwdBarPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -415,6 +416,9 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         settings.bind('ha-humidity-entity', haHumRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         groupHaSensors.add(haHumRow);
 
+        // Seite: Hinweise & Pollen
+        addHintsPage(window, settings);
+
         // ==========================================
         // Seite 3: Updates
         // ==========================================
@@ -470,6 +474,151 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         });
         infoRow.add_suffix(updateBtn);
         groupUpdate.add(infoRow);
+
+        // Seite: Datenquellen
+        addSourcesPage(window);
+    }
+}
+
+/** Adw.ComboRow für eine String-Einstellung mit fester Auswahlliste */
+function makeChoiceRow(settings, key, title, subtitle, values, labels) {
+    const row = new Adw.ComboRow({
+        title,
+        subtitle,
+        model: new Gtk.StringList({ strings: labels }),
+    });
+    const index = values.indexOf(settings.get_string(key));
+    row.selected = index >= 0 ? index : 0;
+    row.connect('notify::selected', () => {
+        settings.set_string(key, values[row.selected]);
+    });
+    return row;
+}
+
+function addHintsPage(window, settings) {
+    const page = new Adw.PreferencesPage({
+        title: 'Hinweise & Pollen',
+        icon_name: 'dialog-information-symbolic',
+    });
+    window.add(page);
+
+    // Hinweise im Popup
+    const groupHints = new Adw.PreferencesGroup({
+        title: 'Hinweise im Popup',
+        description: 'Farbig hinterlegte Hinweise unter der Alternativquelle, höchstens zwei, nach Dringlichkeit sortiert',
+    });
+    page.add(groupHints);
+
+    const hintRows = [
+        ['hint-warnings', 'Amtliche Warnungen', 'Unwetter, Gewitter, Hitze, Frost … – Quelle: DWD-Warnungen über Bright Sky'],
+        ['hint-rain', 'Regen', 'Hinweis, wenn bis morgen Mittag Regen zu erwarten ist – Quelle: DWD MOSMIX über Bright Sky'],
+        ['hint-pollen', 'Pollen', 'Ab mittlerer Belastung durch die gewählten Pollenarten – Quelle: DWD-Pollenflug-Gefahrenindex'],
+        ['hint-uv', 'UV-Index', 'Ab UV-Index 6 (hoch) – Quelle: DWD-UV-Gefahrenindex'],
+    ];
+    for (const [key, title, subtitle] of hintRows) {
+        const row = new Adw.SwitchRow({ title, subtitle });
+        settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+        groupHints.add(row);
+    }
+
+    const thresholdRow = new Adw.SpinRow({
+        title: 'Schwelle für den Regenhinweis',
+        subtitle: 'Stündliche Regenwahrscheinlichkeit in Prozent',
+        adjustment: new Gtk.Adjustment({
+            lower: 10,
+            upper: 100,
+            step_increment: 5,
+            page_increment: 10,
+            value: settings.get_int('hint-rain-threshold'),
+        }),
+    });
+    settings.bind('hint-rain-threshold', thresholdRow, 'value', Gio.SettingsBindFlags.DEFAULT);
+    groupHints.add(thresholdRow);
+
+    // Vorhersage
+    const groupForecast = new Adw.PreferencesGroup({ title: 'Vorhersage' });
+    page.add(groupForecast);
+    const rainRow = new Adw.SwitchRow({
+        title: 'Regenwahrscheinlichkeit anzeigen',
+        subtitle: 'In „Heute“ pro Stunde, in der 5-Tage-Vorhersage der höchste Wert des Tages – Quelle: DWD MOSMIX über Bright Sky',
+    });
+    settings.bind('show-rain-probability', rainRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+    groupForecast.add(rainRow);
+
+    // Pollen
+    const groupPollen = new Adw.PreferencesGroup({
+        title: 'Pollenflug',
+        description: 'Quelle: DWD-Pollenflug-Gefahrenindex (Stufen 0–3, täglich gegen 11 Uhr, nur heute bis übermorgen)',
+    });
+    page.add(groupPollen);
+
+    const pollenRow = new Adw.SwitchRow({
+        title: 'Pollenflug anzeigen',
+        subtitle: 'Arten mit Belastung unter „Heute“, stärkste Art als Punkte in der 5-Tage-Vorhersage',
+    });
+    settings.bind('pollen-enabled', pollenRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+    groupPollen.add(pollenRow);
+
+    groupPollen.add(makeChoiceRow(settings, 'pollen-region', 'Region', 'DWD-Teilregion für die Pollenvorhersage',
+        POLLEN_REGIONS.map(([key]) => key), POLLEN_REGIONS.map(([, name]) => name)));
+
+    const typesRow = new Adw.ExpanderRow({
+        title: 'Pollenarten',
+        subtitle: 'Nur diese Arten werden angezeigt und für den Hinweis berücksichtigt',
+    });
+    groupPollen.add(typesRow);
+    for (const [type, name] of POLLEN_TYPES) {
+        const row = new Adw.SwitchRow({ title: name });
+        row.active = settings.get_strv('pollen-types').includes(type);
+        row.connect('notify::active', () => {
+            const selected = new Set(settings.get_strv('pollen-types'));
+            if (row.active)
+                selected.add(type);
+            else
+                selected.delete(type);
+            // Reihenfolge wie in POLLEN_TYPES
+            settings.set_strv('pollen-types', POLLEN_TYPES.map(([t]) => t).filter(t => selected.has(t)));
+        });
+        typesRow.add_row(row);
+    }
+
+    // UV
+    const groupUv = new Adw.PreferencesGroup({
+        title: 'UV-Index',
+        description: 'Quelle: DWD-UV-Gefahrenindex (täglich gegen 7:30 Uhr, 38 Orte in Deutschland)',
+    });
+    page.add(groupUv);
+    groupUv.add(makeChoiceRow(settings, 'uv-city', 'Ort', 'Nächstgelegener Ort des DWD-UV-Index', UV_CITIES, UV_CITIES));
+}
+
+function addSourcesPage(window) {
+    const page = new Adw.PreferencesPage({
+        title: 'Datenquellen',
+        icon_name: 'emblem-documents-symbolic',
+    });
+    window.add(page);
+
+    const group = new Adw.PreferencesGroup({
+        title: 'Woher die Daten stammen',
+        description: 'Datenbasis: Deutscher Wetterdienst (DWD), zum Teil über den freien Dienst Bright Sky. dwdbar ist kein Angebot des DWD.',
+    });
+    page.add(group);
+
+    const sources = [
+        ['Wetter, Vorhersage und Regenwahrscheinlichkeit', 'DWD (Beobachtungen und MOSMIX-Vorhersage) über Bright Sky', 'https://brightsky.dev'],
+        ['Amtliche Warnungen', 'DWD-Warnungen über Bright Sky', 'https://www.dwd.de/warnungen'],
+        ['Pollenflug', 'DWD-Pollenflug-Gefahrenindex (Open Data)', 'https://opendata.dwd.de/climate_environment/health/alerts/'],
+        ['UV-Index', 'DWD-UV-Gefahrenindex (Open Data)', 'https://opendata.dwd.de/climate_environment/health/alerts/'],
+        ['Stationssuche (Ortsname → Koordinaten)', '© OpenStreetMap-Mitwirkende, Nominatim (ODbL)', 'https://www.openstreetmap.org/copyright'],
+        ['Raumklima (optional)', 'Deine Home-Assistant-Instanz', null],
+    ];
+    for (const [title, subtitle, url] of sources) {
+        const row = new Adw.ActionRow({ title, subtitle, subtitle_selectable: true });
+        if (url) {
+            const btn = new Gtk.LinkButton({ uri: url, label: 'Website', valign: Gtk.Align.CENTER });
+            row.add_suffix(btn);
+        }
+        group.add(row);
     }
 }
 

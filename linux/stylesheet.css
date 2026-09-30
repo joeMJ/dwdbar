@@ -44,7 +44,6 @@
 .dwdbar-update-text {
     font-size: 10pt;
     font-weight: bold;
-    color: #ffffff;
 }
 
 /* Header Card (Aktuelles Wetter) */
@@ -217,3 +216,65 @@
     padding: 10px 4px;
 }
 
+/* Hinweise (Warnungen, Regen, Pollen, UV) */
+.dwdbar-hints-box {
+    spacing: 4px;
+    margin: 6px 0 2px 0;
+}
+
+.dwdbar-hint {
+    border-radius: 8px;
+    padding: 6px 10px;
+    spacing: 8px;
+    background-color: rgba(246, 211, 45, 0.16);
+    border: 1px solid rgba(246, 211, 45, 0.45);
+}
+
+.dwdbar-hint-warning {
+    background-color: rgba(255, 120, 0, 0.22);
+    border: 1px solid rgba(255, 120, 0, 0.6);
+}
+
+.dwdbar-hint-severe {
+    background-color: rgba(237, 51, 59, 0.25);
+    border: 1px solid rgba(237, 51, 59, 0.7);
+}
+
+.dwdbar-hint-text {
+    font-size: 9.5pt;
+    max-width: 380px;
+}
+
+.dwdbar-hint-source {
+    font-size: 7.5pt;
+    opacity: 0.7;
+}
+
+/* Regenwahrscheinlichkeit in den Spalten */
+.dwdbar-col-rain-box {
+    spacing: 3px;
+}
+
+.dwdbar-col-rain-icon,
+.dwdbar-col-rain {
+    color: #78aeed;
+}
+
+.dwdbar-col-rain {
+    font-size: 8.5pt;
+}
+
+/* Pollen */
+.dwdbar-pollen-today {
+    font-size: 9pt;
+    margin-top: 6px;
+}
+
+.dwdbar-col-pollen {
+    font-size: 9pt;
+    color: #f6d32d;
+}
+
+.dwdbar-col-pollen-none {
+    color: rgba(255, 255, 255, 0.4);
+}

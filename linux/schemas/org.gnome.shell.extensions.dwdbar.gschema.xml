@@ -120,6 +120,68 @@
       <description>Intervall zur Aktualisierung der Wetter- und Sensordaten in Minuten.</description>
     </key>
 
+    <!-- Hinweise, Pollen, UV -->
+    <key name="hint-warnings" type="b">
+      <default>true</default>
+      <summary>Hinweis: amtliche DWD-Warnungen</summary>
+      <description>Zeigt amtliche Warnungen (Unwetter, Gewitter, Hitze, Frost …) für den Standort im Popup an.</description>
+    </key>
+
+    <key name="hint-rain" type="b">
+      <default>true</default>
+      <summary>Hinweis: Regen</summary>
+      <description>Zeigt einen Hinweis, wenn bis morgen Mittag Regen zu erwarten ist.</description>
+    </key>
+
+    <key name="hint-rain-threshold" type="i">
+      <range min="10" max="100"/>
+      <default>50</default>
+      <summary>Schwelle für den Regenhinweis (%)</summary>
+      <description>Ab dieser stündlichen Regenwahrscheinlichkeit erscheint der Regenhinweis.</description>
+    </key>
+
+    <key name="hint-pollen" type="b">
+      <default>true</default>
+      <summary>Hinweis: Pollen</summary>
+      <description>Zeigt einen Hinweis bei mittlerer oder starker Belastung durch die gewählten Pollenarten.</description>
+    </key>
+
+    <key name="hint-uv" type="b">
+      <default>true</default>
+      <summary>Hinweis: UV-Index</summary>
+      <description>Zeigt einen Hinweis ab UV-Index 6 (hoch).</description>
+    </key>
+
+    <key name="show-rain-probability" type="b">
+      <default>true</default>
+      <summary>Regenwahrscheinlichkeit anzeigen</summary>
+      <description>Zeigt die Regenwahrscheinlichkeit in der Stunden- und Tagesvorhersage.</description>
+    </key>
+
+    <key name="pollen-enabled" type="b">
+      <default>true</default>
+      <summary>Pollenflug anzeigen</summary>
+      <description>Zeigt den DWD-Pollenflug-Gefahrenindex im Popup an.</description>
+    </key>
+
+    <key name="pollen-region" type="s">
+      <default>'40:41'</default>
+      <summary>Pollen-Teilregion</summary>
+      <description>DWD-Region und -Teilregion im Format „region_id:partregion_id“ (Standard: Rhein.-Westfäl. Tiefland).</description>
+    </key>
+
+    <key name="pollen-types" type="as">
+      <default>['Hasel', 'Erle', 'Esche', 'Birke', 'Graeser', 'Roggen', 'Beifuss', 'Ambrosia']</default>
+      <summary>Angezeigte Pollenarten</summary>
+      <description>Pollenarten, die im Popup und für den Pollenhinweis berücksichtigt werden.</description>
+    </key>
+
+    <key name="uv-city" type="s">
+      <default>'Düsseldorf'</default>
+      <summary>Ort für den UV-Index</summary>
+      <description>Einer der Orte des DWD-UV-Gefahrenindex.</description>
+    </key>
+
     <!-- Update Settings -->
     <key name="update-check-enabled" type="b">
       <default>true</default>

@@ -11,6 +11,8 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import { formatValue, calculateDewPoint } from './dewpoint.js';
+import { localDayKey } from './healthClient.js';
+import { pollenDots, pollenForDay } from './hints.js';
 
 export const DwdIndicator = GObject.registerClass(
 class DwdIndicator extends PanelMenu.Button {
@@ -182,6 +184,15 @@ class DwdIndicator extends PanelMenu.Button {
         this._altSourceCard.add_child(altInfoBox);
         this._contentBox.add_child(this._altSourceCard);
 
+        // A3. Hinweise (Warnungen, Regen, Pollen, UV) – nur sichtbar, wenn vorhanden
+        this._hintsBox = new St.BoxLayout({
+            vertical: true,
+            style_class: 'dwdbar-hints-box',
+            x_expand: true,
+            visible: false,
+        });
+        this._contentBox.add_child(this._hintsBox);
+
         // Trennlinie
         this._contentBox.add_child(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -216,6 +227,17 @@ class DwdIndicator extends PanelMenu.Button {
             x_expand: true,
         });
         this._contentBox.add_child(this._hourlyForecastBox);
+
+        // Pollenflug heute (Arten mit Belastung)
+        this._pollenTodayLabel = new St.Label({
+            text: '',
+            style_class: 'dwdbar-pollen-today',
+            x_expand: true,
+            visible: false,
+        });
+        this._pollenTodayLabel.clutter_text.line_wrap = true;
+        this._pollenTodayLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._contentBox.add_child(this._pollenTodayLabel);
 
         const hourlySourceLabel = new St.Label({
             text: 'Quelle: DWD',
@@ -313,7 +335,76 @@ class DwdIndicator extends PanelMenu.Button {
     /**
      * Aktualisiert die UI mit den neuesten Sensor- und DWD-Wetterdaten.
      */
-    updateUI({ dwdData, haData, dewPoint, updateStatus, isOffline = false, haConnected = false, haKeyringLocked = false, lastTimestamp = null }) {
+    /** Kleine Zeile „Regen-Icon 70 %“ für eine Vorhersagespalte */
+    _makeRainRow(probability) {
+        const box = new St.BoxLayout({
+            style_class: 'dwdbar-col-rain-box',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        box.add_child(new St.Icon({
+            icon_name: 'weather-showers-symbolic',
+            icon_size: 11,
+            style_class: 'dwdbar-col-rain-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        box.add_child(new St.Label({
+            text: probability !== null && probability !== undefined ? `${Math.round(probability)} %` : '-- %',
+            style_class: 'dwdbar-col-rain',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        return box;
+    }
+
+    _updateHints(hints) {
+        this._hintsBox.destroy_all_children();
+        for (const hint of hints) {
+            const row = new St.BoxLayout({
+                style_class: `dwdbar-hint dwdbar-hint-${hint.level}`,
+                x_expand: true,
+            });
+            row.add_child(new St.Icon({
+                icon_name: hint.icon,
+                icon_size: 16,
+                style_class: 'dwdbar-hint-icon',
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            const label = new St.Label({
+                text: hint.text,
+                style_class: 'dwdbar-hint-text',
+                x_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            label.clutter_text.line_wrap = true;
+            label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+            row.add_child(label);
+            row.add_child(new St.Label({
+                text: hint.source,
+                style_class: 'dwdbar-hint-source',
+                y_align: Clutter.ActorAlign.END,
+            }));
+            this._hintsBox.add_child(row);
+        }
+        this._hintsBox.visible = hints.length > 0;
+    }
+
+    _updatePollenToday(pollen, pollenTypes) {
+        if (!pollen) {
+            this._pollenTodayLabel.visible = false;
+            return;
+        }
+        const { max, active } = pollenForDay(pollen, localDayKey(new Date()), pollenTypes);
+        if (max === null)
+            this._pollenTodayLabel.text = 'Pollen heute: keine Daten';
+        else if (active.length === 0)
+            this._pollenTodayLabel.text = 'Pollen heute: keine Belastung';
+        else
+            this._pollenTodayLabel.text = `Pollen heute:  ${active.map(p => `${p.name} ${pollenDots(p.level)}`).join('   ')}`;
+        this._pollenTodayLabel.visible = true;
+    }
+
+    updateUI({ dwdData, haData, dewPoint, updateStatus, isOffline = false, haConnected = false, haKeyringLocked = false, hints = [], pollen = null, pollenTypes = [], lastTimestamp = null }) {
+        const showRain = this._settings.get_boolean('show-rain-probability');
+
         // Konfigurierte Datenquellen abrufen
         const panelSource = this._settings.get_string('panel-data-source') || 'ha';
         const popupSource = this._settings.get_string('popup-data-source') || 'ha';
@@ -463,6 +554,9 @@ class DwdIndicator extends PanelMenu.Button {
                     x_align: Clutter.ActorAlign.CENTER,
                 }));
 
+                if (showRain)
+                    col.add_child(this._makeRainRow(h.precipitationProbability));
+
                 col.add_child(new St.Label({
                     text: formatValue(h.humidity, '%', 0),
                     style_class: 'dwdbar-col-hum',
@@ -522,6 +616,19 @@ class DwdIndicator extends PanelMenu.Button {
                     x_align: Clutter.ActorAlign.CENTER,
                 }));
 
+                if (showRain)
+                    col.add_child(this._makeRainRow(d.precipitationProbability));
+
+                if (pollen) {
+                    // DWD liefert Pollen nur für heute bis übermorgen
+                    const { max } = pollenForDay(pollen, d.date, pollenTypes);
+                    col.add_child(new St.Label({
+                        text: pollenDots(max),
+                        style_class: max === null ? 'dwdbar-col-pollen dwdbar-col-pollen-none' : 'dwdbar-col-pollen',
+                        x_align: Clutter.ActorAlign.CENTER,
+                    }));
+                }
+
                 col.add_child(new St.Label({
                     text: formatValue(d.humidity, '%', 0),
                     style_class: 'dwdbar-col-hum',
@@ -544,6 +651,10 @@ class DwdIndicator extends PanelMenu.Button {
             });
             this._dailyForecastBox.add_child(emptyLabel);
         }
+
+        // 5b. Hinweise und Pollen heute
+        this._updateHints(hints);
+        this._updatePollenToday(pollen, pollenTypes);
 
         // 6. Footer Stand
         let statusMsg = '';
