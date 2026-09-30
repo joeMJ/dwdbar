@@ -313,7 +313,7 @@ class DwdIndicator extends PanelMenu.Button {
     /**
      * Aktualisiert die UI mit den neuesten Sensor- und DWD-Wetterdaten.
      */
-    updateUI({ dwdData, haData, dewPoint, updateStatus, isOffline = false, haConnected = false, lastTimestamp = null }) {
+    updateUI({ dwdData, haData, dewPoint, updateStatus, isOffline = false, haConnected = false, haKeyringLocked = false, lastTimestamp = null }) {
         // Konfigurierte Datenquellen abrufen
         const panelSource = this._settings.get_string('panel-data-source') || 'ha';
         const popupSource = this._settings.get_string('popup-data-source') || 'ha';
@@ -562,6 +562,8 @@ class DwdIndicator extends PanelMenu.Button {
         if (haEnabled) {
             if (haConnected) {
                 statusMsg += ' • HA';
+            } else if (haKeyringLocked) {
+                statusMsg += ' • HA: Schlüsselbund gesperrt';
             } else {
                 statusMsg += ' • HA offline';
             }

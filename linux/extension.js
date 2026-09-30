@@ -12,7 +12,7 @@ import { HaClient } from './src/haClient.js';
 import { DwdClient } from './src/dwdClient.js';
 import { UpdateChecker } from './src/updater.js';
 import { calculateDewPoint } from './src/dewpoint.js';
-import { lookupHaToken, migrateLegacyHaToken } from './src/secretStore.js';
+import { lookupHaTokenNoPrompt, migrateLegacyHaTokenNoPrompt } from './src/secretStore.js';
 
 export default class DwdBarExtension extends Extension {
     enable() {
@@ -30,6 +30,7 @@ export default class DwdBarExtension extends Extension {
         this._lastHaTimestamp = null;
         this._isOffline = false;
         this._haConnected = false;
+        this._haKeyringLocked = false;
 
         this._timeoutId = null;
         this._retryTimeoutId = null;
@@ -39,12 +40,6 @@ export default class DwdBarExtension extends Extension {
         this._sleepSignalId = null;
 
         this._createIndicator();
-
-        // Klartext-Token aus dconf einmalig in den Schlüsselbund verschieben
-        migrateLegacyHaToken(this._settings, this._cancellable).catch(e => {
-            if (!this._cancellable?.is_cancelled())
-                console.warn(`[dwdbar] Token-Migration in den Schlüsselbund fehlgeschlagen: ${e.message}`);
-        });
 
         // Einstellungen überwachen
         this._settingsSignals = [];
@@ -265,19 +260,30 @@ export default class DwdBarExtension extends Extension {
     }
 
     /**
-     * HA-Token aus dem Schlüsselbund; solange die Migration noch nicht gelaufen
-     * ist, Fallback auf den alten dconf-Wert.
+     * HA-Token aus dem Schlüsselbund – niemals mit Entsperr-Dialog, da ein Dialog
+     * aus dem Shell-Prozess GNOME Shell abstürzen lassen kann. Solange die
+     * Migration nicht gelaufen ist, Fallback auf den alten dconf-Wert.
+     * @returns {Promise<{token: string, locked: boolean}>}
      */
     async _getHaToken() {
         try {
-            const token = await lookupHaToken(this._cancellable);
+            await migrateLegacyHaTokenNoPrompt(this._settings, this._cancellable);
+        } catch (e) {
+            if (!this._cancellable?.is_cancelled())
+                console.warn(`[dwdbar] Token-Migration in den Schlüsselbund fehlgeschlagen: ${e.message}`);
+        }
+
+        const legacy = this._settings?.get_string('ha-token') ?? '';
+        try {
+            const { token, locked } = await lookupHaTokenNoPrompt(this._cancellable);
             if (token)
-                return token;
+                return { token, locked: false };
+            return { token: legacy, locked: locked && !legacy };
         } catch (e) {
             if (!this._cancellable?.is_cancelled())
                 console.warn(`[dwdbar] Schlüsselbund nicht lesbar: ${e.message}`);
+            return { token: legacy, locked: false };
         }
-        return this._settings?.get_string('ha-token') ?? '';
     }
 
     async refreshData() {
@@ -301,11 +307,17 @@ export default class DwdBarExtension extends Extension {
         const updateUrl = this._settings.get_string('git-raw-metadata-url');
 
         try {
-            const haToken = haEnabled ? await this._getHaToken() : '';
+            let haToken = '';
+            this._haKeyringLocked = false;
+            if (haEnabled) {
+                const result = await this._getHaToken();
+                haToken = result.token;
+                this._haKeyringLocked = result.locked;
+            }
             if (!this._settings || !this._indicator) return;
 
             // Asynchrone Abfragen parallel starten
-            const haPromise = haEnabled
+            const haPromise = haEnabled && haToken
                 ? this._haClient.fetchSensorValues(haBaseUrl, haToken, haTempEntity, haHumEntity, this._cancellable)
                 : Promise.resolve({ temp: null, humidity: null });
 
@@ -342,7 +354,10 @@ export default class DwdBarExtension extends Extension {
                 this._haConnected = true;
             } else if (haEnabled) {
                 this._haConnected = false;
-                if (!this._lastHaData) {
+                if (this._haKeyringLocked) {
+                    // Ohne Dialog warten, bis der Schlüsselbund anderweitig entsperrt wird
+                    this._scheduleRetry(60);
+                } else if (!this._lastHaData) {
                     this._scheduleRetry(20);
                 }
             }
@@ -376,6 +391,7 @@ export default class DwdBarExtension extends Extension {
             updateStatus: this._lastUpdateStatus,
             isOffline: this._isOffline,
             haConnected: this._haConnected,
+            haKeyringLocked: this._haKeyringLocked,
             lastTimestamp: this._lastDwdTimestamp || this._lastHaTimestamp,
         });
     }
