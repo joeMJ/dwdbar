@@ -109,7 +109,11 @@ do_install() {
     fi
 
     # libsecret (GNOME-Schlüsselbund für das HA-Token)
-    if ! ls /usr/lib/*/girepository-1.0/Secret-1.typelib /usr/lib/girepository-1.0/Secret-1.typelib &>/dev/null; then
+    local secret_found=0 typelib
+    for typelib in /usr/lib/*/girepository-1.0/Secret-1.typelib /usr/lib/girepository-1.0/Secret-1.typelib /usr/lib64/girepository-1.0/Secret-1.typelib; do
+        [ -f "${typelib}" ] && secret_found=1
+    done
+    if [ "${secret_found}" -eq 0 ]; then
         print_error "libsecret-Typelib fehlt – das HA-Token kann nicht im Schlüsselbund gespeichert werden. (apt install gir1.2-secret-1)"
     fi
 
