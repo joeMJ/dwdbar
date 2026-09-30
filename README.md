@@ -1,5 +1,17 @@
 # dwdbar - Multi-Platform Weather & Climate Bar
 
+> [!WARNING]
+> **Privates Hobbyprojekt – nicht gepflegt / unmaintained.**
+> Dieses Repository ist für meinen eigenen Gebrauch gedacht und wird nur aus Bequemlichkeit öffentlich bereitgestellt.
+>
+> * **Keine Unterstützung:** Issues und Pull Requests werden nicht bearbeitet, Feature-Wünsche nicht umgesetzt. Bitte keine Issues eröffnen.
+> * **Keine Garantie:** Bereitstellung „wie besehen“, ohne jede Gewährleistung und Haftung. Nutzung auf eigenes Risiko.
+> * **Eigene Umgebung:** Entwickelt und getestet nur auf meinen eigenen Ubuntu-Rechnern (24.04 / 26.04, GNOME 46–50). Auf anderen Systemen kann es fehlschlagen. Windows- und macOS-Varianten existieren bisher nur als Planung.
+> * **Zugangsdaten & Netzwerk:** Die Extension läuft mit den Rechten deiner GNOME-Sitzung. Ein optionales Home-Assistant-Token wird **unverschlüsselt** in GSettings/dconf gespeichert. Sie ruft regelmäßig die Bright Sky API, bei der Stationssuche OpenStreetMap Nominatim, deine Home-Assistant-Instanz und für die Update-Prüfung eine entfernte `metadata.json` ab. **Lies den Code, bevor du ihn installierst.**
+> * **Keine Updates zugesichert:** Es kann jederzeit ohne Ankündigung Änderungen, Brüche oder die Löschung des Repos geben. Gern selbst forken und anpassen.
+>
+> *Private hobby project, unmaintained, provided as-is. No support, no issues, no warranty. Fork it if you like.*
+
 > **Wetter- & Raumklima-Integration für Linux (GNOME Shell), Windows 11 und macOS mit präziser Taupunktberechnung**
 
 ---
