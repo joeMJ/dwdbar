@@ -11,29 +11,93 @@ const SEVERITY_RANK = { extreme: 3, severe: 2, moderate: 1, minor: 0 };
 /** Maximal angezeigte Hinweise im Popup */
 export const MAX_HINTS = 2;
 
-/** Stufe 0…3 (Halbschritte) → drei Punkte, z. B. 1.5 → "●◐○" */
-export function pollenDots(level) {
+/** Farben der „Ampel“: Punkt 1 grün, 2 gelb, 3 rot; leere Punkte grau (in hell und dunkel lesbar) */
+const DOT_COLORS = ['#2ec27e', '#e5a50a', '#e01b24'];
+const DOT_EMPTY_COLOR = '#9a9996';
+
+/** Stufe 0…3 als Pango-Markup mit Ampelfarben, z. B. 1.5 → grün ●, gelb ◐, grau ○ */
+export function pollenDotsMarkup(level) {
     if (level === null || level === undefined)
         return '–';
-    let dots = '';
+    let markup = '';
     for (let i = 1; i <= 3; i++) {
         if (level >= i)
-            dots += '●';
+            markup += `<span foreground="${DOT_COLORS[i - 1]}">●</span>`;
         else if (level >= i - 0.5)
-            dots += '◐';
+            markup += `<span foreground="${DOT_COLORS[i - 1]}">◐</span>`;
         else
-            dots += '○';
+            markup += `<span foreground="${DOT_EMPTY_COLOR}">○</span>`;
     }
-    return dots;
+    return markup;
 }
 
-/** Stärke im Dativ: „mit einer … Pollenbelastung“ */
+/** Belastungsstufe im Dativ nach DWD-Legende: „mit einer … Belastung“ */
 function pollenStrengthText(level) {
     if (level >= 3)
-        return 'starken';
+        return 'hohen';
     if (level >= 2.5)
-        return 'mittleren bis starken';
-    return 'mittleren';
+        return 'mittleren bis hohen';
+    if (level >= 2)
+        return 'mittleren';
+    if (level >= 1.5)
+        return 'geringen bis mittleren';
+    if (level >= 1)
+        return 'geringen';
+    return 'keinen bis geringen';
+}
+
+function joinGerman(items) {
+    if (items.length <= 1)
+        return items.join('');
+    return `${items.slice(0, -1).join(', ')} und ${items[items.length - 1]}`;
+}
+
+/** „einer mittleren Belastung durch Gräser und einer geringen Belastung durch Birke“ */
+function pollenLoadPhrase(active) {
+    const byLevel = new Map();
+    for (const p of active) {
+        if (!byLevel.has(p.level))
+            byLevel.set(p.level, []);
+        byLevel.get(p.level).push(p.name);
+    }
+    return joinGerman([...byLevel.entries()]
+        .sort((a, b) => b[0] - a[0])
+        .map(([level, names]) => `einer ${pollenStrengthText(level)} Belastung durch ${joinGerman(names)}`));
+}
+
+/**
+ * Pollenausblick für morgen und übermorgen als Satz, z. B.
+ * „Morgen ist mit einer mittleren Belastung durch Gräser zu rechnen, übermorgen mit einer
+ * geringen Belastung durch Gräser und Birke.“ – null, wenn keine Daten vorliegen.
+ */
+export function pollenOutlookText(pollen, selectedTypes, now = new Date()) {
+    const days = [
+        ['Morgen', 'morgen', 1],
+        ['Übermorgen', 'übermorgen', 2],
+    ].map(([label, lower, offset]) => {
+        const key = localDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset, 12));
+        return { label, lower, ...pollenForDay(pollen, key, selectedTypes) };
+    }).filter(d => d.max !== null);
+
+    if (days.length === 0)
+        return null;
+
+    const loaded = days.filter(d => d.active.length > 0);
+    const free = days.filter(d => d.active.length === 0);
+
+    if (loaded.length === 0) {
+        const when = days.length === 2 ? 'Morgen und übermorgen' : days[0].label;
+        return `${when} ist keine Pollenbelastung zu erwarten.`;
+    }
+
+    const [first, ...rest] = loaded;
+    let text = `${first.label} ist mit ${pollenLoadPhrase(first.active)} zu rechnen`;
+    for (const d of rest)
+        text += `, ${d.lower} mit ${pollenLoadPhrase(d.active)}`;
+    text += '.';
+    for (const d of free)
+        text += ` ${d.label} ist keine Pollenbelastung zu erwarten.`;
+    return text;
 }
 
 /**

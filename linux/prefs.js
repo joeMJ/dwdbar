@@ -480,12 +480,24 @@ export default class DwdBarPreferences extends ExtensionPreferences {
     }
 }
 
-/** Adw.ComboRow für eine String-Einstellung mit fester Auswahlliste */
-function makeChoiceRow(settings, key, title, subtitle, values, labels) {
+/**
+ * Adw.ComboRow für eine String-Einstellung mit fester Auswahlliste.
+ * Die Auswahl steht ungekürzt als Untertitel, die Liste zeigt die Einträge in voller Länge.
+ */
+function makeChoiceRow(settings, key, title, values, labels) {
+    const listFactory = new Gtk.SignalListItemFactory();
+    listFactory.connect('setup', (_f, item) => {
+        item.set_child(new Gtk.Label({ xalign: 0 }));
+    });
+    listFactory.connect('bind', (_f, item) => {
+        item.get_child().label = item.get_item().get_string();
+    });
+
     const row = new Adw.ComboRow({
         title,
-        subtitle,
+        use_subtitle: true,
         model: new Gtk.StringList({ strings: labels }),
+        list_factory: listFactory,
     });
     const index = values.indexOf(settings.get_string(key));
     row.selected = index >= 0 ? index : 0;
@@ -554,12 +566,12 @@ function addHintsPage(window, settings) {
 
     const pollenRow = new Adw.SwitchRow({
         title: 'Pollenflug anzeigen',
-        subtitle: 'Arten mit Belastung unter „Heute“, stärkste Art als Punkte in der 5-Tage-Vorhersage',
+        subtitle: 'Heutige Belastung als Ampel unter der Alternativquelle, morgen und übermorgen als Text unter der 5-Tage-Vorhersage',
     });
     settings.bind('pollen-enabled', pollenRow, 'active', Gio.SettingsBindFlags.DEFAULT);
     groupPollen.add(pollenRow);
 
-    groupPollen.add(makeChoiceRow(settings, 'pollen-region', 'Region', 'DWD-Teilregion für die Pollenvorhersage',
+    groupPollen.add(makeChoiceRow(settings, 'pollen-region', 'Region (DWD-Teilregion)',
         POLLEN_REGIONS.map(([key]) => key), POLLEN_REGIONS.map(([, name]) => name)));
 
     const typesRow = new Adw.ExpanderRow({
@@ -588,7 +600,7 @@ function addHintsPage(window, settings) {
         description: 'Quelle: DWD-UV-Gefahrenindex (täglich gegen 7:30 Uhr, 38 Orte in Deutschland)',
     });
     page.add(groupUv);
-    groupUv.add(makeChoiceRow(settings, 'uv-city', 'Ort', 'Nächstgelegener Ort des DWD-UV-Index', UV_CITIES, UV_CITIES));
+    groupUv.add(makeChoiceRow(settings, 'uv-city', 'Ort (nächstgelegener Ort des DWD-UV-Index)', UV_CITIES, UV_CITIES));
 }
 
 function addSourcesPage(window) {
@@ -605,8 +617,9 @@ function addSourcesPage(window) {
     page.add(group);
 
     const sources = [
-        ['Wetter, Vorhersage und Regenwahrscheinlichkeit', 'DWD (Beobachtungen und MOSMIX-Vorhersage) über Bright Sky', 'https://brightsky.dev'],
-        ['Amtliche Warnungen', 'DWD-Warnungen über Bright Sky', 'https://www.dwd.de/warnungen'],
+        ['Aktuelles Wetter', 'DWD-Wetterbeobachtungen (Stationsmessungen), abgerufen über Bright Sky', 'https://opendata.dwd.de/weather/'],
+        ['Vorhersage und Regenwahrscheinlichkeit', 'DWD-MOSMIX-Vorhersage (stündlich, 10 Tage), abgerufen über Bright Sky', 'https://www.dwd.de/mosmix'],
+        ['Amtliche Warnungen', 'DWD-Warnungen (Unwetter, Hitze, Frost …), abgerufen über Bright Sky', 'https://www.dwd.de/warnungen'],
         ['Pollenflug', 'DWD-Pollenflug-Gefahrenindex (Open Data)', 'https://opendata.dwd.de/climate_environment/health/alerts/'],
         ['UV-Index', 'DWD-UV-Gefahrenindex (Open Data)', 'https://opendata.dwd.de/climate_environment/health/alerts/'],
         ['Stationssuche (Ortsname → Koordinaten)', '© OpenStreetMap-Mitwirkende, Nominatim (ODbL)', 'https://www.openstreetmap.org/copyright'],
@@ -620,6 +633,20 @@ function addSourcesPage(window) {
         }
         group.add(row);
     }
+
+    // Bright Sky ist ein Vermittlungsdienst, keine eigene Datenquelle
+    const groupService = new Adw.PreferencesGroup({
+        title: 'Abrufdienst',
+        description: 'Beobachtungen, MOSMIX-Vorhersage und Warnungen des DWD werden nicht direkt, sondern über diesen Dienst abgerufen.',
+    });
+    page.add(groupService);
+    const brightSkyRow = new Adw.ActionRow({
+        title: 'Bright Sky',
+        subtitle: 'Freies, quelloffenes Projekt, das die Open-Data-Angebote des DWD als JSON-Schnittstelle bereitstellt. Kein Angebot des DWD.',
+        subtitle_selectable: true,
+    });
+    brightSkyRow.add_suffix(new Gtk.LinkButton({ uri: 'https://brightsky.dev', label: 'Website', valign: Gtk.Align.CENTER }));
+    groupService.add(brightSkyRow);
 }
 
 /**

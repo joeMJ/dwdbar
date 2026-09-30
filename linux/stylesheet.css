@@ -270,11 +270,8 @@
     margin-top: 6px;
 }
 
-.dwdbar-col-pollen {
-    font-size: 9pt;
-    color: #f6d32d;
-}
-
-.dwdbar-col-pollen-none {
-    color: rgba(255, 255, 255, 0.4);
+.dwdbar-pollen-outlook {
+    font-size: 8.5pt;
+    margin-top: 6px;
+    max-width: 440px;
 }

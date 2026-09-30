@@ -37,9 +37,10 @@
 * **Popup-Kachel (bei Klick auf das Bar-Icon):**
   * **Aktuelles Wetter:** Großes Zustandsicon, Wetterlage, Stationsname, Temperatur & Quelle.
   * **Alternativquelle (optional):** Zeigt die zweite Quelle (z. B. DWD vs. HA) parallel an.
+  * **Pollen heute:** Direkt unter der Alternativquelle die Pollenarten mit Belastung, Stärke als Ampel (grün, gelb, rot; Stufen 0–3 nach DWD).
   * **Hinweise:** Höchstens zwei farbig hinterlegte Hinweise, nach Dringlichkeit: amtliche DWD-Warnungen (Unwetter, Gewitter, Hitze, Frost …), bevorstehender Regen bis morgen Mittag („In etwa 1 Stunde ist mit Regen zu rechnen“), Pollenbelastung und hoher UV-Index. Jede Art einzeln abschaltbar.
-  * **Heute:** 10-Stunden-Vorhersage (+2h, +4h, +6h, +8h, +10h) mit Tages-Höchst- und Tiefstwerten (`Max ... / Min ...`), Regenwahrscheinlichkeit pro Stunde, Pollenflug heute (Arten mit Belastung, Stufe 0–3) und Quellenangabe.
-  * **5-Tage-Vorhersage:** Vorhersage der kommenden 5 Tage (ab morgigem Tag) mit Min/Max, höchster Regenwahrscheinlichkeit des Tages, Pollenbelastung (morgen und übermorgen), Feuchte, Taupunkt und Quellenangabe.
+  * **Heute:** 10-Stunden-Vorhersage (+2h, +4h, +6h, +8h, +10h) mit Tages-Höchst- und Tiefstwerten (`Max ... / Min ...`), Regenwahrscheinlichkeit pro Stunde und Quellenangabe.
+  * **5-Tage-Vorhersage:** Vorhersage der kommenden 5 Tage (ab morgigem Tag) mit Min/Max, höchster Regenwahrscheinlichkeit des Tages, Feuchte, Taupunkt und Quellenangabe; darunter die Pollenvorhersage für morgen und übermorgen als Satz („Morgen ist mit einer mittleren Belastung durch Gräser zu rechnen …“).
   * **Footer:** Zeitstempel des letzten erfolgreichen Abrufs (`Stand: HH:MM Uhr`), Verbindungsstatus und Schnellaktionen.
 
 * **Datenquellen:** Datenbasis Deutscher Wetterdienst – Beobachtungen, MOSMIX-Vorhersage und amtliche Warnungen über [Bright Sky](https://brightsky.dev), Pollenflug- und UV-Gefahrenindex direkt von [DWD Open Data](https://opendata.dwd.de/climate_environment/health/alerts/); Stationssuche über OpenStreetMap Nominatim; optional Home Assistant. Eine Übersicht steht in den Einstellungen unter *Datenquellen*. dwdbar ist kein Angebot des DWD.

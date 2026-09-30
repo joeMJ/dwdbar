@@ -12,7 +12,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import { formatValue, calculateDewPoint } from './dewpoint.js';
 import { localDayKey } from './healthClient.js';
-import { pollenDots, pollenForDay } from './hints.js';
+import { pollenDotsMarkup, pollenForDay, pollenOutlookText } from './hints.js';
 
 export const DwdIndicator = GObject.registerClass(
 class DwdIndicator extends PanelMenu.Button {
@@ -184,7 +184,18 @@ class DwdIndicator extends PanelMenu.Button {
         this._altSourceCard.add_child(altInfoBox);
         this._contentBox.add_child(this._altSourceCard);
 
-        // A3. Hinweise (Warnungen, Regen, Pollen, UV) – nur sichtbar, wenn vorhanden
+        // A3. Pollenflug heute (Arten mit Belastung, Ampelpunkte)
+        this._pollenTodayLabel = new St.Label({
+            text: '',
+            style_class: 'dwdbar-pollen-today',
+            x_expand: true,
+            visible: false,
+        });
+        this._pollenTodayLabel.clutter_text.line_wrap = true;
+        this._pollenTodayLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._contentBox.add_child(this._pollenTodayLabel);
+
+        // A4. Hinweise (Warnungen, Regen, Pollen, UV) – nur sichtbar, wenn vorhanden
         this._hintsBox = new St.BoxLayout({
             vertical: true,
             style_class: 'dwdbar-hints-box',
@@ -228,17 +239,6 @@ class DwdIndicator extends PanelMenu.Button {
         });
         this._contentBox.add_child(this._hourlyForecastBox);
 
-        // Pollenflug heute (Arten mit Belastung)
-        this._pollenTodayLabel = new St.Label({
-            text: '',
-            style_class: 'dwdbar-pollen-today',
-            x_expand: true,
-            visible: false,
-        });
-        this._pollenTodayLabel.clutter_text.line_wrap = true;
-        this._pollenTodayLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-        this._contentBox.add_child(this._pollenTodayLabel);
-
         const hourlySourceLabel = new St.Label({
             text: 'Quelle: DWD',
             style_class: 'dwdbar-section-source-badge',
@@ -272,6 +272,17 @@ class DwdIndicator extends PanelMenu.Button {
             x_expand: true,
         });
         this._contentBox.add_child(this._dailyForecastBox);
+
+        // Pollenausblick morgen/übermorgen als Satz (DWD liefert nur diese zwei Tage)
+        this._pollenOutlookLabel = new St.Label({
+            text: '',
+            style_class: 'dwdbar-pollen-outlook',
+            x_expand: true,
+            visible: false,
+        });
+        this._pollenOutlookLabel.clutter_text.line_wrap = true;
+        this._pollenOutlookLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        this._contentBox.add_child(this._pollenOutlookLabel);
 
         const dailySourceLabel = new St.Label({
             text: 'Quelle: DWD',
@@ -387,19 +398,26 @@ class DwdIndicator extends PanelMenu.Button {
         this._hintsBox.visible = hints.length > 0;
     }
 
-    _updatePollenToday(pollen, pollenTypes) {
+    _updatePollen(pollen, pollenTypes) {
         if (!pollen) {
             this._pollenTodayLabel.visible = false;
+            this._pollenOutlookLabel.visible = false;
             return;
         }
         const { max, active } = pollenForDay(pollen, localDayKey(new Date()), pollenTypes);
+        let markup;
         if (max === null)
-            this._pollenTodayLabel.text = 'Pollen heute: keine Daten';
+            markup = 'Pollen heute: keine Daten';
         else if (active.length === 0)
-            this._pollenTodayLabel.text = 'Pollen heute: keine Belastung';
+            markup = 'Pollen heute: keine Belastung';
         else
-            this._pollenTodayLabel.text = `Pollen heute:  ${active.map(p => `${p.name} ${pollenDots(p.level)}`).join('   ')}`;
+            markup = `Pollen heute:  ${active.map(p => `${p.name} ${pollenDotsMarkup(p.level)}`).join('    ')}`;
+        this._pollenTodayLabel.clutter_text.set_markup(markup);
         this._pollenTodayLabel.visible = true;
+
+        const outlook = pollenOutlookText(pollen, pollenTypes);
+        this._pollenOutlookLabel.text = outlook ? `Pollen: ${outlook}` : '';
+        this._pollenOutlookLabel.visible = !!outlook;
     }
 
     updateUI({ dwdData, haData, dewPoint, updateStatus, isOffline = false, haConnected = false, haKeyringLocked = false, hints = [], pollen = null, pollenTypes = [], lastTimestamp = null }) {
@@ -619,16 +637,6 @@ class DwdIndicator extends PanelMenu.Button {
                 if (showRain)
                     col.add_child(this._makeRainRow(d.precipitationProbability));
 
-                if (pollen) {
-                    // DWD liefert Pollen nur für heute bis übermorgen
-                    const { max } = pollenForDay(pollen, d.date, pollenTypes);
-                    col.add_child(new St.Label({
-                        text: pollenDots(max),
-                        style_class: max === null ? 'dwdbar-col-pollen dwdbar-col-pollen-none' : 'dwdbar-col-pollen',
-                        x_align: Clutter.ActorAlign.CENTER,
-                    }));
-                }
-
                 col.add_child(new St.Label({
                     text: formatValue(d.humidity, '%', 0),
                     style_class: 'dwdbar-col-hum',
@@ -654,7 +662,7 @@ class DwdIndicator extends PanelMenu.Button {
 
         // 5b. Hinweise und Pollen heute
         this._updateHints(hints);
-        this._updatePollenToday(pollen, pollenTypes);
+        this._updatePollen(pollen, pollenTypes);
 
         // 6. Footer Stand
         let statusMsg = '';
