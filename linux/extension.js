@@ -12,6 +12,7 @@ import { HaClient } from './src/haClient.js';
 import { DwdClient } from './src/dwdClient.js';
 import { UpdateChecker } from './src/updater.js';
 import { calculateDewPoint } from './src/dewpoint.js';
+import { lookupHaToken, migrateLegacyHaToken } from './src/secretStore.js';
 
 export default class DwdBarExtension extends Extension {
     enable() {
@@ -38,6 +39,12 @@ export default class DwdBarExtension extends Extension {
         this._sleepSignalId = null;
 
         this._createIndicator();
+
+        // Klartext-Token aus dconf einmalig in den Schlüsselbund verschieben
+        migrateLegacyHaToken(this._settings, this._cancellable).catch(e => {
+            if (!this._cancellable?.is_cancelled())
+                console.warn(`[dwdbar] Token-Migration in den Schlüsselbund fehlgeschlagen: ${e.message}`);
+        });
 
         // Einstellungen überwachen
         this._settingsSignals = [];
@@ -257,6 +264,22 @@ export default class DwdBarExtension extends Extension {
         );
     }
 
+    /**
+     * HA-Token aus dem Schlüsselbund; solange die Migration noch nicht gelaufen
+     * ist, Fallback auf den alten dconf-Wert.
+     */
+    async _getHaToken() {
+        try {
+            const token = await lookupHaToken(this._cancellable);
+            if (token)
+                return token;
+        } catch (e) {
+            if (!this._cancellable?.is_cancelled())
+                console.warn(`[dwdbar] Schlüsselbund nicht lesbar: ${e.message}`);
+        }
+        return this._settings?.get_string('ha-token') ?? '';
+    }
+
     async refreshData() {
         if (!this._settings || !this._indicator) return;
 
@@ -267,7 +290,6 @@ export default class DwdBarExtension extends Extension {
 
         const haEnabled = this._settings.get_boolean('ha-enabled');
         const haBaseUrl = this._settings.get_string('ha-base-url');
-        const haToken = this._settings.get_string('ha-token');
         const haTempEntity = this._settings.get_string('ha-temp-entity');
         const haHumEntity = this._settings.get_string('ha-humidity-entity');
 
@@ -279,6 +301,9 @@ export default class DwdBarExtension extends Extension {
         const updateUrl = this._settings.get_string('git-raw-metadata-url');
 
         try {
+            const haToken = haEnabled ? await this._getHaToken() : '';
+            if (!this._settings || !this._indicator) return;
+
             // Asynchrone Abfragen parallel starten
             const haPromise = haEnabled
                 ? this._haClient.fetchSensorValues(haBaseUrl, haToken, haTempEntity, haHumEntity, this._cancellable)

@@ -11,8 +11,14 @@
 
     <key name="ha-token" type="s">
       <default>''</default>
-      <summary>Home Assistant Long-Lived Access Token</summary>
-      <description>Langlebiger Zugriffs-Token für die Home Assistant REST-API.</description>
+      <summary>Home Assistant Long-Lived Access Token (veraltet)</summary>
+      <description>Nur noch für die Migration: Ein hier vorhandener Klartext-Token wird beim Start in den GNOME-Schlüsselbund verschoben und danach gelöscht.</description>
+    </key>
+
+    <key name="ha-token-revision" type="i">
+      <default>0</default>
+      <summary>Änderungszähler für das HA-Token im Schlüsselbund</summary>
+      <description>Wird von den Einstellungen hochgezählt, wenn das Token im Schlüsselbund geändert wurde, damit die Extension neu abfragt.</description>
     </key>
 
     <key name="ha-temp-entity" type="s">

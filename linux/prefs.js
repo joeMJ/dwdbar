@@ -7,6 +7,7 @@ import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
 import { DwdClient } from './src/dwdClient.js';
+import { lookupHaToken, storeHaToken, clearHaToken, migrateLegacyHaToken } from './src/secretStore.js';
 
 export default class DwdBarPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
@@ -341,11 +342,59 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         settings.bind('ha-base-url', haUrlRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         groupHaConn.add(haUrlRow);
 
+        // Token liegt im GNOME-Schlüsselbund, nicht in dconf
         const haTokenRow = new Adw.PasswordEntryRow({
             title: 'Long-Lived Access Token',
+            show_apply_button: true,
         });
-        settings.bind('ha-token', haTokenRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         groupHaConn.add(haTokenRow);
+
+        const haTokenInfoRow = new Adw.ActionRow({
+            title: 'Token-Speicherort',
+            subtitle: 'GNOME-Schlüsselbund – wird geladen …',
+        });
+        groupHaConn.add(haTokenInfoRow);
+
+        let storedToken = null;
+
+        migrateLegacyHaToken(settings)
+            .catch(e => console.warn(`[dwdbar] Token-Migration fehlgeschlagen: ${e.message}`))
+            .then(() => lookupHaToken())
+            .then(token => {
+                storedToken = token ?? '';
+                haTokenRow.text = storedToken;
+                haTokenInfoRow.subtitle = token
+                    ? 'Im GNOME-Schlüsselbund hinterlegt (verschlüsselt)'
+                    : 'Kein Token hinterlegt';
+            })
+            .catch(e => {
+                haTokenInfoRow.subtitle = `Schlüsselbund nicht erreichbar: ${e.message}`;
+            });
+
+        const saveToken = async () => {
+            const token = haTokenRow.text.trim();
+            if (storedToken === null || token === storedToken)
+                return;
+            try {
+                if (token)
+                    await storeHaToken(token);
+                else
+                    await clearHaToken();
+                storedToken = token;
+                settings.set_int('ha-token-revision', settings.get_int('ha-token-revision') + 1);
+                haTokenInfoRow.subtitle = token
+                    ? 'Im GNOME-Schlüsselbund gespeichert (verschlüsselt)'
+                    : 'Token aus dem Schlüsselbund entfernt';
+            } catch (e) {
+                haTokenInfoRow.subtitle = `Speichern fehlgeschlagen: ${e.message}`;
+            }
+        };
+        haTokenRow.connect('apply', saveToken);
+        haTokenRow.connect('entry-activated', saveToken);
+        window.connect('close-request', () => {
+            saveToken();
+            return false;
+        });
 
         const groupHaSensors = new Adw.PreferencesGroup({
             title: 'Entitäten',

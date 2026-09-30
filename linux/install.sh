@@ -108,6 +108,11 @@ do_install() {
         exit 1
     fi
 
+    # libsecret (GNOME-Schlüsselbund für das HA-Token)
+    if ! ls /usr/lib/*/girepository-1.0/Secret-1.typelib /usr/lib/girepository-1.0/Secret-1.typelib &>/dev/null; then
+        print_error "libsecret-Typelib fehlt – das HA-Token kann nicht im Schlüsselbund gespeichert werden. (apt install gir1.2-secret-1)"
+    fi
+
     # Schemas kompilieren
     print_info "Kompiliere GSettings-Schemas..."
     glib-compile-schemas "${SCRIPT_DIR}/schemas/"
