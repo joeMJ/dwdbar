@@ -286,7 +286,17 @@ export default class DwdBarExtension extends Extension {
         }
     }
 
-    async refreshData() {
+    /**
+     * Wird aus Signal-Handlern und Timern ohne await aufgerufen – lehnt daher nie ab
+     * und protokolliert Fehler mit Stack (sonst nur „Unhandled promise rejection“).
+     */
+    refreshData() {
+        return this._refreshData().catch(e => {
+            console.warn(`[dwdbar] Fehler bei der Abfrage: ${e}\n${e?.stack ?? ''}`);
+        });
+    }
+
+    async _refreshData() {
         if (!this._settings || !this._indicator) return;
 
         if (this._retryTimeoutId) {
