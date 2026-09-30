@@ -60,7 +60,7 @@ Das Skript lädt den aktuellen Stand per HTTPS von GitHub in ein temporäres Ver
 
 ### Aktualisieren
 
-Denselben Befehl erneut ausführen – die Einstellungen (Station, Home Assistant usw.) bleiben erhalten. Liegt eine neue Version vor, zeigt das Popup einen Hinweis.
+Denselben Befehl erneut ausführen oder in den Einstellungen unter *Updates* auf **Jetzt aktualisieren** klicken – die Einstellungen (Station, Home Assistant usw.) bleiben erhalten. Liegt eine neue Version vor, zeigt das Popup einen Hinweis.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash
@@ -71,6 +71,8 @@ curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash
 ```bash
 curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash -s -- --uninstall
 ```
+
+Entfernt die Extension, alle Einstellungen und das Home-Assistant-Token aus dem Schlüsselbund. (Über den Extension-Manager deinstalliert, bleiben Einstellungen und Token erhalten.)
 
 ### Erst ansehen, dann ausführen
 
@@ -85,7 +87,7 @@ bash install.sh
 Über das Zahnrad im Popup oder:
 
 ```bash
-gnome-extensions prefs dwdbar@krefeld.local
+gnome-extensions prefs dwdbar@johnlose.de
 ```
 
 ### Alternative: Git-Klon (für Entwicklung)

@@ -1,7 +1,7 @@
 {
   "name": "dwdbar",
   "description": "DWD Wetter & Home Assistant Sensor-Integration mit Taupunktberechnung",
-  "uuid": "dwdbar@krefeld.local",
+  "uuid": "dwdbar@johnlose.de",
   "shell-version": [
     "46",
     "47",
@@ -10,7 +10,7 @@
     "50"
   ],
   "url": "https://github.com/joeMJ/dwdbar",
-  "version": 7,
-  "version-name": "6.1",
+  "version": 8,
+  "version-name": "6.2",
   "settings-schema": "org.gnome.shell.extensions.dwdbar"
 }

@@ -6,9 +6,13 @@
 
 set -e
 
-EXTENSION_UUID="dwdbar@krefeld.local"
-TARGET_DIR="${HOME}/.local/share/gnome-shell/extensions/${EXTENSION_UUID}"
+EXTENSION_UUID="dwdbar@johnlose.de"
+# Frühere UUIDs – werden bei Installation/Deinstallation abgeräumt
+LEGACY_UUIDS=("dwdbar@krefeld.local")
+EXTENSIONS_DIR="${HOME}/.local/share/gnome-shell/extensions"
+TARGET_DIR="${EXTENSIONS_DIR}/${EXTENSION_UUID}"
 DESKTOP_DIR="${HOME}/.local/share/applications"
+DCONF_PATH="/org/gnome/shell/extensions/dwdbar/"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 print_info() {
@@ -23,6 +27,62 @@ print_error() {
     echo -e "\033[1;31m[FEHLER]\033[0m $1"
 }
 
+# Extension deaktivieren, aus enabled-extensions austragen und Verzeichnis löschen
+remove_extension() {
+    local uuid="$1"
+    local dir="${EXTENSIONS_DIR}/${uuid}"
+
+    if command -v gnome-extensions &>/dev/null; then
+        gnome-extensions disable "${uuid}" 2>/dev/null || true
+    fi
+
+    if command -v gsettings &>/dev/null; then
+        local current updated
+        current=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo "[]")
+        if [[ "${current}" == *"'${uuid}'"* ]]; then
+            updated=$(echo "${current}" | sed -E "s/, '${uuid}'|'${uuid}', |'${uuid}'//g")
+            gsettings set org.gnome.shell enabled-extensions "${updated}" 2>/dev/null || true
+        fi
+    fi
+
+    if [ -d "${dir}" ]; then
+        print_info "Entferne Verzeichnis: ${dir}..."
+        rm -rf "${dir}"
+    fi
+}
+
+# Frühere Installationen unter alter UUID abräumen (Einstellungen bleiben erhalten)
+remove_legacy_extensions() {
+    local uuid
+    for uuid in "${LEGACY_UUIDS[@]}"; do
+        if [ -d "${EXTENSIONS_DIR}/${uuid}" ]; then
+            print_info "Entferne alte Installation ${uuid} (neue UUID: ${EXTENSION_UUID})..."
+            remove_extension "${uuid}"
+        fi
+    done
+}
+
+# HA-Token aus dem GNOME-Schlüsselbund löschen (kann bei gesperrtem Schlüsselbund nach dem Passwort fragen)
+clear_keyring_token() {
+    if ! command -v gjs &>/dev/null; then
+        print_error "gjs nicht gefunden – bitte „dwdbar – Home Assistant Token“ manuell in „Passwörter und Verschlüsselung“ löschen."
+        return
+    fi
+    local result
+    result=$(gjs -c "
+        imports.gi.versions.Secret = '1';
+        const Secret = imports.gi.Secret;
+        const schema = new Secret.Schema('org.gnome.shell.extensions.dwdbar', Secret.SchemaFlags.NONE,
+            { 'key': Secret.SchemaAttributeType.STRING });
+        print(Secret.password_clear_sync(schema, { 'key': 'ha-token' }, null) ? 'geloescht' : 'keiner');
+    " 2>/dev/null || echo "fehler")
+    case "${result}" in
+        geloescht) print_info "HA-Token aus dem Schlüsselbund gelöscht." ;;
+        keiner)    print_info "Kein HA-Token im Schlüsselbund vorhanden." ;;
+        *)         print_error "Schlüsselbund-Eintrag konnte nicht gelöscht werden – bitte „dwdbar – Home Assistant Token“ manuell in „Passwörter und Verschlüsselung“ löschen." ;;
+    esac
+}
+
 # Hilfe
 show_help() {
     echo "Verwendung: $0 [OPTION]"
@@ -30,7 +90,7 @@ show_help() {
     echo "Optionen:"
     echo "  --install     (Standard) Installiert und aktiviert die Extension im User-Verzeichnis"
     echo "  --update      Im Git-Klon: git pull + Installation; sonst Installation des geladenen Stands"
-    echo "  --uninstall   Entfernt die Extension und alle zugehörigen Daten restlos"
+    echo "  --uninstall   Entfernt Extension, Einstellungen (dconf) und HA-Token (Schlüsselbund)"
     echo "  --help        Zeigt diese Hilfe an"
     exit 0
 }
@@ -38,24 +98,18 @@ show_help() {
 # Deinstallation
 do_uninstall() {
     print_info "Starte rückstandslose Deinstallation von ${EXTENSION_UUID}..."
-    
-    if command -v gnome-extensions &>/dev/null; then
-        print_info "Deaktiviere Extension..."
-        gnome-extensions disable "${EXTENSION_UUID}" 2>/dev/null || true
+
+    remove_extension "${EXTENSION_UUID}"
+    remove_legacy_extensions
+
+    # Einstellungen löschen – direkt per dconf, da das Schema nur im
+    # Extension-Verzeichnis liegt und gsettings es nicht findet
+    if command -v dconf &>/dev/null; then
+        print_info "Lösche Einstellungen (${DCONF_PATH})..."
+        dconf reset -f "${DCONF_PATH}" 2>/dev/null || true
     fi
 
-    # GSettings Schema zurücksetzen
-    if command -v gsettings &>/dev/null; then
-        print_info "Setze GSettings-Werte zurück..."
-        gsettings reset-recursively org.gnome.shell.extensions.dwdbar 2>/dev/null || true
-
-        # Aus enabled-extensions entfernen
-        CURRENT_EXTENSIONS=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo "[]")
-        if [[ "$CURRENT_EXTENSIONS" == *"'${EXTENSION_UUID}'"* ]]; then
-            UPDATED_EXTENSIONS=$(echo "$CURRENT_EXTENSIONS" | sed -E "s/, '${EXTENSION_UUID}'|'${EXTENSION_UUID}', |'${EXTENSION_UUID}'//g")
-            gsettings set org.gnome.shell enabled-extensions "$UPDATED_EXTENSIONS" 2>/dev/null || true
-        fi
-    fi
+    clear_keyring_token
 
     # Startverknüpfung (.desktop) entfernen
     if [ -f "${DESKTOP_DIR}/dwdbar.desktop" ]; then
@@ -64,13 +118,7 @@ do_uninstall() {
         command -v update-desktop-database &>/dev/null && update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
     fi
 
-    # Zielverzeichnis löschen
-    if [ -d "${TARGET_DIR}" ]; then
-        print_info "Entferne Verzeichnis: ${TARGET_DIR}..."
-        rm -rf "${TARGET_DIR}"
-    fi
-
-    print_success "Deinstallation abgeschlossen! Die Extension wurde restlos entfernt."
+    print_success "Deinstallation abgeschlossen! Extension, Einstellungen und HA-Token wurden entfernt."
     exit 0
 }
 
@@ -120,6 +168,9 @@ do_install() {
     # Schemas kompilieren
     print_info "Kompiliere GSettings-Schemas..."
     glib-compile-schemas "${SCRIPT_DIR}/schemas/"
+
+    # Alte Installation unter früherer UUID entfernen
+    remove_legacy_extensions
 
     # Zielordner anlegen
     mkdir -p "${TARGET_DIR}"
