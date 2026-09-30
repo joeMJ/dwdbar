@@ -14,3 +14,15 @@ obj/
 *.suo
 .vs/
 *.dotCover
+
+# Zugangsdaten & lokale Konfiguration (nie committen)
+.env
+*.env
+secrets.*
+*.dconf
+dconf-*.ini
+.claude/settings.local.json
+
+# Signaturschlüssel (Windows-Build)
+*.pfx
+*.snk
