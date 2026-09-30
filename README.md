@@ -43,24 +43,60 @@
 
 ---
 
-## Schnellstart Linux (Ubuntu / GNOME)
+## Installation Linux (Ubuntu / GNOME)
 
-Installation und Update ohne Git, direkt per HTTPS von GitHub (kein `sudo`, nur im eigenen Benutzerkonto):
+**Voraussetzungen:** Ubuntu 24.04 – 26.04 (GNOME 46–50), `curl`, `tar` und `glib-compile-schemas` (Paket `libglib2.0-bin`, auf Ubuntu vorinstalliert). Kein `sudo` nötig – alles läuft im eigenen Benutzerkonto.
+
+### Installieren
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash
 ```
 
-* **Update:** denselben Befehl erneut ausführen (Einstellungen bleiben erhalten).
-* **Deinstallation:** `curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash -s -- --uninstall`
-* **Erst ansehen, dann ausführen:**
-  ```bash
-  curl -fsSLO https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh
-  less install.sh
-  bash install.sh
-  ```
-* **Alternativ per Git-Klon:** `git clone https://github.com/joeMJ/dwdbar.git && cd dwdbar && ./install.sh` – Update dann mit `./update.sh`, Deinstallation mit `./uninstall.sh`.
-* **Einstellungen:** `gnome-extensions prefs dwdbar@krefeld.local` (oder über das Zahnrad im Popup)
+Das Skript lädt den aktuellen Stand per HTTPS von GitHub in ein temporäres Verzeichnis, installiert die Extension nach `~/.local/share/gnome-shell/extensions/` und räumt danach auf.
+
+> [!NOTE]
+> Unter Wayland lädt GNOME Shell neue oder aktualisierte Extensions erst nach dem **Ab- und wieder Anmelden**.
+
+### Aktualisieren
+
+Denselben Befehl erneut ausführen – die Einstellungen (Station, Home Assistant usw.) bleiben erhalten. Liegt eine neue Version vor, zeigt das Popup einen Hinweis.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash
+```
+
+### Deinstallieren
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash -s -- --uninstall
+```
+
+### Erst ansehen, dann ausführen
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh
+less install.sh
+bash install.sh
+```
+
+### Einstellungen
+
+Über das Zahnrad im Popup oder:
+
+```bash
+gnome-extensions prefs dwdbar@krefeld.local
+```
+
+### Alternative: Git-Klon (für Entwicklung)
+
+```bash
+git clone https://github.com/joeMJ/dwdbar.git
+cd dwdbar
+./install.sh
+```
+
+Update mit `./update.sh` (führt `git pull` aus), Deinstallation mit `./uninstall.sh`.
 
 ---
 
