@@ -51,6 +51,15 @@ remove_extension() {
     fi
 }
 
+# Startverknüpfung aus früheren Versionen (bis v6.2) entfernen
+remove_desktop_entry() {
+    if [ -f "${DESKTOP_DIR}/dwdbar.desktop" ]; then
+        print_info "Entferne Startverknüpfung: ${DESKTOP_DIR}/dwdbar.desktop..."
+        rm -f "${DESKTOP_DIR}/dwdbar.desktop"
+        command -v update-desktop-database &>/dev/null && update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
+    fi
+}
+
 # Frühere Installationen unter alter UUID abräumen (Einstellungen bleiben erhalten)
 remove_legacy_extensions() {
     local uuid
@@ -111,12 +120,7 @@ do_uninstall() {
 
     clear_keyring_token
 
-    # Startverknüpfung (.desktop) entfernen
-    if [ -f "${DESKTOP_DIR}/dwdbar.desktop" ]; then
-        print_info "Entferne Startverknüpfung: ${DESKTOP_DIR}/dwdbar.desktop..."
-        rm -f "${DESKTOP_DIR}/dwdbar.desktop"
-        command -v update-desktop-database &>/dev/null && update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
-    fi
+    remove_desktop_entry
 
     print_success "Deinstallation abgeschlossen! Extension, Einstellungen und HA-Token wurden entfernt."
     exit 0
@@ -210,19 +214,14 @@ do_install() {
         gnome-extensions enable "${EXTENSION_UUID}" 2>/dev/null || true
     fi
 
-    # Startverknüpfung (.desktop) anlegen
-    if [ -f "${SCRIPT_DIR}/dwdbar.desktop" ]; then
-        print_info "Installiere Startverknüpfung nach ${DESKTOP_DIR}/dwdbar.desktop..."
-        mkdir -p "${DESKTOP_DIR}"
-        cp "${SCRIPT_DIR}/dwdbar.desktop" "${DESKTOP_DIR}/"
-        command -v update-desktop-database &>/dev/null && update-desktop-database "${DESKTOP_DIR}" 2>/dev/null || true
-    fi
+    # Keine Startverknüpfung mehr (seit v6.3) – Einstellungen über das Zahnrad im Popup
+    remove_desktop_entry
 
     print_success "Installation erfolgreich abgeschlossen!"
     print_info "WICHTIGER HINWEIS (GNOME Wayland):"
     print_info "  GNOME Shell lädt neu installierte Erweiterungen auf Wayland erst beim Sitzungsstart."
     print_info "  Bitte einmal ABMELDEN und wieder ANMELDEN (oder System neu starten)!"
-    print_info "  Danach ist das Icon in der oberen Leiste aktiv und die Startverknüpfung nutzbar."
+    print_info "  Danach ist das Icon in der oberen Leiste aktiv."
 }
 
 # Parameter verarbeiten
