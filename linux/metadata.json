@@ -10,6 +10,7 @@
     "50"
   ],
   "url": "https://github.com/joeMJ/dwdbar",
-  "version": 6,
+  "version": 7,
+  "version-name": "6.1",
   "settings-schema": "org.gnome.shell.extensions.dwdbar"
 }

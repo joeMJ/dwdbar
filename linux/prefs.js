@@ -6,6 +6,7 @@ import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import { DwdClient } from './src/dwdClient.js';
 import { lookupHaToken, storeHaToken, clearHaToken, migrateLegacyHaToken } from './src/secretStore.js';
 
@@ -448,11 +449,53 @@ export default class DwdBarPreferences extends ExtensionPreferences {
         settings.bind('git-raw-metadata-url', gitRawUrlRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         groupUpdate.add(gitRawUrlRow);
 
+        const updateCommand = 'curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash';
+        const versionName = this.metadata['version-name'] ?? String(this.metadata.version || 1);
+
         const infoRow = new Adw.ActionRow({
-            title: `Installierte Version: v${this.metadata.version || 1}`,
-            subtitle: 'Aktualisieren im Terminal: curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash',
+            title: `Installierte Version: v${versionName}`,
+            subtitle: `Aktualisieren im Terminal: ${updateCommand}`,
             subtitle_selectable: true,
         });
+        const updateBtn = new Gtk.Button({
+            label: 'Jetzt aktualisieren',
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        updateBtn.connect('clicked', () => {
+            const error = launchInTerminal(
+                `${updateCommand}; echo; read -r -p 'Fertig – danach ab- und wieder anmelden. Enter schließt das Fenster.'`);
+            if (error)
+                infoRow.subtitle = `${error} – bitte manuell ausführen: ${updateCommand}`;
+        });
+        infoRow.add_suffix(updateBtn);
         groupUpdate.add(infoRow);
     }
+}
+
+/**
+ * Startet einen Befehl in einem Terminalfenster (bevorzugt das Standard-Terminal
+ * über xdg-terminal-exec, sonst Ptyxis, GNOME Terminal, x-terminal-emulator).
+ * @param {string} command - Shell-Befehl für bash -c
+ * @returns {string|null} Fehlermeldung oder null bei Erfolg
+ */
+function launchInTerminal(command) {
+    const candidates = [
+        ['xdg-terminal-exec', []],
+        ['ptyxis', ['--']],
+        ['gnome-terminal', ['--']],
+        ['x-terminal-emulator', ['-e']],
+    ];
+    for (const [program, prefix] of candidates) {
+        const path = GLib.find_program_in_path(program);
+        if (!path)
+            continue;
+        try {
+            Gio.Subprocess.new([path, ...prefix, 'bash', '-c', command], Gio.SubprocessFlags.NONE);
+            return null;
+        } catch (e) {
+            console.warn(`[dwdbar] ${program} konnte nicht gestartet werden: ${e.message}`);
+        }
+    }
+    return 'Kein Terminal gefunden';
 }

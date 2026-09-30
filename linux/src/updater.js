@@ -73,6 +73,7 @@ export class UpdateChecker {
                 updateAvailable: isNewer,
                 currentVersion: this._currentVersion,
                 remoteVersion: remoteVer,
+                remoteVersionName: String(remoteMeta['version-name'] || remoteVer),
                 error: null,
             };
         } catch (e) {
