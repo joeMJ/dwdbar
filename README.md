@@ -45,14 +45,21 @@
 
 ## Schnellstart Linux (Ubuntu / GNOME)
 
+Installation und Update ohne Git, direkt per HTTPS von GitHub (kein `sudo`, nur im eigenen Benutzerkonto):
+
 ```bash
-git clone https://github.com/joeMJ/dwdbar.git
-cd dwdbar
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash
 ```
 
-* **Update:** `./update.sh`
-* **Deinstallation:** `./uninstall.sh`
+* **Update:** denselben Befehl erneut ausführen (Einstellungen bleiben erhalten).
+* **Deinstallation:** `curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash -s -- --uninstall`
+* **Erst ansehen, dann ausführen:**
+  ```bash
+  curl -fsSLO https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh
+  less install.sh
+  bash install.sh
+  ```
+* **Alternativ per Git-Klon:** `git clone https://github.com/joeMJ/dwdbar.git && cd dwdbar && ./install.sh` – Update dann mit `./update.sh`, Deinstallation mit `./uninstall.sh`.
 * **Einstellungen:** `gnome-extensions prefs dwdbar@krefeld.local` (oder über das Zahnrad im Popup)
 
 ---

@@ -29,7 +29,7 @@ show_help() {
     echo ""
     echo "Optionen:"
     echo "  --install     (Standard) Installiert und aktiviert die Extension im User-Verzeichnis"
-    echo "  --update      Zieht neueste Git-Änderungen und aktualisiert die Extension"
+    echo "  --update      Im Git-Klon: git pull + Installation; sonst Installation des geladenen Stands"
     echo "  --uninstall   Entfernt die Extension und alle zugehörigen Daten restlos"
     echo "  --help        Zeigt diese Hilfe an"
     exit 0
@@ -91,7 +91,7 @@ do_update() {
             exit 1
         }
     else
-        print_info "Kein Git-Repository im Projektordner. Überspringe git pull."
+        print_info "Kein Git-Klon – installiere den heruntergeladenen Stand."
     fi
     do_install
     print_success "Update erfolgreich abgeschlossen!"

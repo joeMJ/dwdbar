@@ -401,7 +401,8 @@ export default class DwdBarPreferences extends ExtensionPreferences {
 
         const infoRow = new Adw.ActionRow({
             title: `Installierte Version: v${this.metadata.version || 1}`,
-            subtitle: 'Aktualisierung via Terminal: ./update.sh oder ./install.sh --update',
+            subtitle: 'Aktualisieren im Terminal: curl -fsSL https://raw.githubusercontent.com/joeMJ/dwdbar/main/install.sh | bash',
+            subtitle_selectable: true,
         });
         groupUpdate.add(infoRow);
     }

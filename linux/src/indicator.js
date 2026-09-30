@@ -571,7 +571,7 @@ class DwdIndicator extends PanelMenu.Button {
         // 7. Update-Banner prüfen
         if (updateStatus?.updateAvailable) {
             this._updateBanner.visible = true;
-            this._updateLabel.text = `Update v${updateStatus.remoteVersion} verfügbar! (install.sh --update)`;
+            this._updateLabel.text = `Update v${updateStatus.remoteVersion} verfügbar – install.sh erneut ausführen (siehe Einstellungen)`;
         } else {
             this._updateBanner.visible = false;
         }
