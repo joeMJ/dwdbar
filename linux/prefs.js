@@ -376,7 +376,7 @@ export default class DwdBarPreferences extends ExtensionPreferences {
 
         const groupUpdate = new Adw.PreferencesGroup({
             title: 'Git Aktualitätsprüfung',
-            description: 'Prüfung auf neue Versionen über Git (Gitea / GitHub Mirror)',
+            description: 'Prüfung auf neue Versionen über GitHub (github.com/joeMJ/dwdbar)',
         });
         pageUpdate.add(groupUpdate);
 

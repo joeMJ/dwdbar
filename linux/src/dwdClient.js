@@ -193,7 +193,7 @@ export class DwdClient {
                     method: 'GET',
                     uri: geoUri,
                 });
-                geoMsg.request_headers.append('User-Agent', 'dwdbar-gnome-extension/1.0 (https://github.com/joe/dwdbar)');
+                geoMsg.request_headers.append('User-Agent', 'dwdbar-gnome-extension/1.0 (https://github.com/joeMJ/dwdbar)');
                 geoMsg.request_headers.append('Accept', 'application/json');
 
                 const geoBytes = await this._session.send_and_read_async(

@@ -46,8 +46,8 @@
 ## Schnellstart Linux (Ubuntu / GNOME)
 
 ```bash
-git clone gitea@192.168.10.179:joe/krefeld-dwdbar.git
-cd krefeld-dwdbar
+git clone https://github.com/joeMJ/dwdbar.git
+cd dwdbar
 ./install.sh
 ```
 

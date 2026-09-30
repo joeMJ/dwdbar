@@ -122,13 +122,13 @@
     </key>
 
     <key name="git-update-url" type="s">
-      <default>'gitea@192.168.10.179:joe/krefeld-dwdbar.git'</default>
+      <default>'https://github.com/joeMJ/dwdbar.git'</default>
       <summary>Git Clone / Update URL</summary>
       <description>Git-Remote-URL für Skript-Updates.</description>
     </key>
 
     <key name="git-raw-metadata-url" type="s">
-      <default>'http://192.168.10.179:3000/joe/krefeld-dwdbar/raw/branch/main/linux/metadata.json'</default>
+      <default>'https://raw.githubusercontent.com/joeMJ/dwdbar/main/linux/metadata.json'</default>
       <summary>Git Raw Metadata URL</summary>
       <description>HTTP(S)-URL zur Prüfung der neuesten metadata.json (Gitea / GitHub).</description>
     </key>
